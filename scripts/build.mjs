@@ -12,7 +12,7 @@ await build({
   target: "node20",
   format: "esm",
   outfile: "dist/cli.js",
-  external: ["keytar"],
+  external: ["keytar", "readline", "readline/promises"],
   banner: {
     js: "import{createRequire}from'node:module';const require=createRequire(import.meta.url);",
   },

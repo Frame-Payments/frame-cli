@@ -50,4 +50,28 @@ program
     await run({ merchant: "acct_demo", mode: "sandbox" });
   });
 
+program
+  .command("login")
+  .description("Authenticate with your Frame sandbox API key")
+  .action(async () => {
+    const { run } = await import("./commands/login.js");
+    await run();
+  });
+
+program
+  .command("logout")
+  .description("Remove stored credentials from the OS keychain")
+  .action(async () => {
+    const { run } = await import("./commands/logout.js");
+    await run();
+  });
+
+program
+  .command("whoami")
+  .description("Show the currently authenticated merchant")
+  .action(async () => {
+    const { run } = await import("./commands/whoami.js");
+    await run();
+  });
+
 await program.parseAsync(process.argv);
