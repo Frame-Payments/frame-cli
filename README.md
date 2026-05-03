@@ -1,1 +1,99 @@
-# frame-cli
+# Frame CLI
+
+**Sandbox developer tooling for the [Frame](https://framepayments.com) API** — version 0.0.0 · sandbox only
+
+Simulate payments, stream real-time logs, and forward webhook events to a local server — all against the Frame sandbox, without touching live keys.
+
+---
+
+## Install
+
+```bash
+npm i -g @framepayments/cli
+```
+
+**Requirements:** Node.js ≥ 20
+
+No global install? Use the `npx` escape hatch:
+
+```bash
+npx @framepayments/cli <command>
+```
+
+---
+
+## Quickstart
+
+```bash
+# 1. Authenticate (stores credentials in the OS keychain)
+frame login
+
+# 2. Forward sandbox webhook events to your local server
+#    Run in the background so your terminal stays free
+frame listen --forward-to http://localhost:3000/webhooks &
+
+# 3. Trigger a sandbox event
+frame trigger transfer.completed
+```
+
+Your local server receives a realistic `transfer.completed` payload within seconds.
+
+---
+
+## Commands
+
+| Command | Description |
+|---|---|
+| [`frame login`](https://github.com/Frame-Payments/frame-cli#readme) | Authenticate with your Frame sandbox API key |
+| [`frame logout`](https://github.com/Frame-Payments/frame-cli#readme) | Remove stored credentials from the OS keychain |
+| [`frame whoami`](https://github.com/Frame-Payments/frame-cli#readme) | Show the currently authenticated merchant |
+| [`frame logs tail`](https://github.com/Frame-Payments/frame-cli#readme) | Stream real-time sandbox API request logs |
+| [`frame listen`](https://github.com/Frame-Payments/frame-cli#readme) | Forward sandbox webhook events to a local URL |
+| [`frame trigger <event_code>`](https://github.com/Frame-Payments/frame-cli#readme) | Trigger a sandbox event using bundled fixtures |
+| [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
+| [`frame open [page]`](https://github.com/Frame-Payments/frame-cli#readme) | Open a dashboard page in the default browser |
+
+Run `frame <command> --help` for options and examples on any command.
+
+---
+
+## For AI agents
+
+A machine-readable skill for AI coding agents (Cursor, Claude, Copilot, etc.) ships inside this package:
+
+```bash
+npx skills add Frame-Payments/frame-cli
+```
+
+Or browse the skill directly at:
+[skills.sh/Frame-Payments/frame-cli/frame-cli](https://skills.sh/Frame-Payments/frame-cli/frame-cli)
+
+The skill documents all 9 commands, the 16 canonical trigger event codes, three end-to-end workflows, and common gotchas (blocking commands, OS keychain in headless containers, deprecated vocabulary redirects).
+
+---
+
+## Sandbox only
+
+The Frame CLI operates exclusively in sandbox mode. **Live API keys are rejected.** Every command prints a `mode: sandbox` banner alongside the active merchant — a deliberate safety signal, not a bug.
+
+Live-mode support is out of scope for v1. See [ADR-0007](docs/adr/../../../frame/docs/adr/0007-cli-sandbox-only-v1.md) for the rationale.
+
+---
+
+## Contributing
+
+Start with [`CONTEXT.md`](./CONTEXT.md) for the canonical-vs-deprecated vocabulary rules, then browse [`docs/adr/`](./docs/adr/) for architectural decisions.
+
+**Adding a new subcommand?** Ship all three surfaces:
+
+1. **Implementation** — `src/commands/<name>.ts` registered in `src/cli.ts`
+2. **`--help` example** — at least one `Examples:` block via `.addHelpText("after", …)`
+3. **`skills/frame-cli/SKILL.md` entry** — document the command in the Per-command details section
+
+A CI test validates the skill frontmatter. A separate CI test asserts the canonical event array in `src/commands/trigger.ts` stays in sync with the bundled YAML fixtures in `fixtures/`.
+
+---
+
+## License
+
+MIT
