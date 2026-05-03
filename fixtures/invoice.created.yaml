@@ -1,0 +1,14 @@
+event: invoice.created
+steps:
+  - method: POST
+    path: /api/v1/accounts
+    body:
+      name: Test Account
+    capture: account_id
+  - method: POST
+    path: /api/v1/invoices
+    body:
+      account_id: "{account_id}"
+      amount: 2000
+      currency: usd
+    capture: invoice_id

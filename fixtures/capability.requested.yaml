@@ -1,0 +1,13 @@
+event: capability.requested
+steps:
+  - method: POST
+    path: /api/v1/accounts
+    body:
+      name: Test Account
+    capture: account_id
+  - method: POST
+    path: /api/v1/capabilities
+    body:
+      account_id: "{account_id}"
+      type: card_receive
+    capture: capability_id

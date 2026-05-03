@@ -38,6 +38,9 @@ export class ApiError extends Error {
 
 export interface ApiClient {
   get<T = unknown>(path: string): Promise<T>;
+  post<T = unknown>(path: string, body: unknown): Promise<T>;
+  patch<T = unknown>(path: string, body: unknown): Promise<T>;
+  delete<T = unknown>(path: string): Promise<T>;
 }
 
 export interface ApiClientOptions {
@@ -75,25 +78,32 @@ function serverErrorMessage(body: unknown): string | null {
 export function createApiClient(opts: ApiClientOptions): ApiClient {
   const base = opts.baseUrl ?? DEFAULT_BASE_URL;
 
-  async function request<T>(path: string): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${base}${path}`;
     const resp = await fetch(url, {
+      method,
       headers: {
         Authorization: `Bearer ${opts.apiKey}`,
         "X-Frame-API-Version": API_VERSION,
         "Content-Type": "application/json",
       },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
-    const body = (await resp.json()) as unknown;
+    const responseBody = (await resp.json()) as unknown;
 
     if (!resp.ok) {
-      const msg = serverErrorMessage(body) ?? `HTTP ${resp.status}`;
+      const msg = serverErrorMessage(responseBody) ?? `HTTP ${resp.status}`;
       throw new ApiError(resp.status, msg);
     }
 
-    return body as T;
+    return responseBody as T;
   }
 
-  return { get: request };
+  return {
+    get: <T>(path: string) => request<T>("GET", path),
+    post: <T>(path: string, body: unknown) => request<T>("POST", path, body),
+    patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
+    delete: <T>(path: string) => request<T>("DELETE", path),
+  };
 }

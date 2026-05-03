@@ -1,0 +1,14 @@
+event: transfer.created
+steps:
+  - method: POST
+    path: /api/v1/accounts
+    body:
+      name: Test Account
+    capture: account_id
+  - method: POST
+    path: /api/v1/transfers
+    body:
+      account_id: "{account_id}"
+      amount: 1000
+      currency: usd
+    capture: transfer_id
