@@ -74,4 +74,40 @@ program
     await run();
   });
 
+// ── logs ────────────────────────────────────────────────────────────────────────
+
+const logs = program.command("logs").description("Log streaming commands");
+
+logs
+  .command("tail")
+  .description("Stream real-time sandbox API request logs")
+  .option(
+    "--filter-status <statuses>",
+    "Filter by status class or exact code, comma-separated (e.g. 4xx,5xx or 200)",
+    (val: string, prev: string[]) => [...prev, ...val.split(",").map((s) => s.trim())],
+    [] as string[],
+  )
+  .option(
+    "--filter-method <methods>",
+    "Filter by HTTP method, comma-separated (e.g. POST,GET)",
+    (val: string, prev: string[]) => [...prev, ...val.split(",").map((s) => s.trim())],
+    [] as string[],
+  )
+  .option("--filter-path <pattern>", "Filter by path glob (e.g. /transfers/*)")
+  .option("--json", "Output one JSON object per line (no color)")
+  .action(async (opts: {
+    filterStatus: string[];
+    filterMethod: string[];
+    filterPath?: string;
+    json?: boolean;
+  }) => {
+    const { run } = await import("./commands/logs-tail.js");
+    const runOpts: Parameters<typeof run>[0] = {};
+    if (opts.filterStatus.length) runOpts.filterStatus = opts.filterStatus;
+    if (opts.filterMethod.length) runOpts.filterMethod = opts.filterMethod;
+    if (opts.filterPath) runOpts.filterPath = opts.filterPath;
+    if (opts.json) runOpts.json = opts.json;
+    await run(runOpts);
+  });
+
 await program.parseAsync(process.argv);
