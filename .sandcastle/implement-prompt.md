@@ -1,8 +1,8 @@
 # TASK
 
-Fix issue {{TASK_ID}}: {{ISSUE_TITLE}}
+Fix Linear issue {{TASK_ID}}: {{ISSUE_TITLE}}
 
-Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that in too.
+Pull in the issue using `linear issue view {{TASK_ID}}`. If it has a parent PRD listed in the `Parent` section, pull that in too with `linear issue view <PARENT_ID>`.
 
 Only work on the issue specified.
 
@@ -42,7 +42,7 @@ Before committing, run `npm run typecheck` and `npm run test` to ensure the test
 Make a git commit. The commit message must:
 
 1. Start with `RALPH:` prefix
-2. Include task completed + PRD reference
+2. Include task completed + Linear issue reference (e.g. `{{TASK_ID}}`)
 3. Key decisions made
 4. Files changed
 5. Blockers or notes for next iteration
@@ -51,9 +51,16 @@ Keep it concise.
 
 # THE ISSUE
 
-If the task is not complete, leave a comment on the issue with what was done.
+If the task is not complete, leave a comment on the issue describing what was done. Write the comment body to a file first and pass it via `--body-file` so markdown formatting is preserved:
 
-Do not close the issue - this will be done later.
+```bash
+cat > /tmp/comment.md <<'EOF'
+... your progress notes ...
+EOF
+linear issue comment add {{TASK_ID}} --body-file /tmp/comment.md
+```
+
+Do not move the issue to Done — that will be done later by the merger.
 
 Once complete, output <promise>COMPLETE</promise>.
 

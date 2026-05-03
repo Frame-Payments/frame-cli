@@ -13,11 +13,14 @@ For each branch:
 
 After all branches are merged, make a single commit summarizing the merge.
 
-# CLOSE ISSUES
+# MARK ISSUES DONE
 
-For each branch that was merged, close its issue using the following command:
+For each branch that was merged, move its Linear issue to the `Done` state and leave a completion comment:
 
-`gh issue close <ID> --comment "Completed by Sandcastle"`
+```bash
+linear issue update <ID> --state Done
+linear issue comment add <ID> --body "Completed by Sandcastle"
+```
 
 Here are all the issues:
 

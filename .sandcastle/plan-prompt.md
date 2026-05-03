@@ -1,10 +1,10 @@
 # ISSUES
 
-Here are the open issues in the repo:
+Here are the open Linear issues tagged `ready-for-agent` in this team:
 
 <issues-json>
 
-!`gh issue list --state open --label Sandcastle --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`
+!`linear issue query --team FRA --label ready-for-agent --state backlog --state unstarted --json --limit 0 | jq '[.[] | {id: .identifier, title, body: .description, labels: [.labels[]?.name // .labels[]? // empty], state: .state.name}]'`
 
 </issues-json>
 
@@ -18,16 +18,18 @@ An issue B is **blocked by** issue A if:
 - B and A modify overlapping files or modules, making concurrent work likely to produce merge conflicts
 - B's requirements depend on a decision or API shape that A will establish
 
+The `Blocked by` section in each issue body lists explicit blockers. Trust it as the primary signal; use the rest of the body to spot implicit blockers it missed.
+
 An issue is **unblocked** if it has zero blocking dependencies on other open issues.
 
-For each unblocked issue, assign a branch name using the format `sandcastle/issue-{id}-{slug}`.
+For each unblocked issue, assign a branch name using the format `sandcastle/{id-lowercase}` (e.g. `sandcastle/fra-3462`).
 
 # OUTPUT
 
 Output your plan as a JSON object wrapped in `<plan>` tags:
 
 <plan>
-{"issues": [{"id": "42", "title": "Fix auth bug", "branch": "sandcastle/issue-42-fix-auth-bug"}]}
+{"issues": [{"id": "FRA-3462", "title": "Fix auth bug", "branch": "sandcastle/fra-3462"}]}
 </plan>
 
 Include only unblocked issues. If every issue is blocked, include the single highest-priority candidate (the one with the fewest or weakest dependencies).
