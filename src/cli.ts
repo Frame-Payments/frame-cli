@@ -12,6 +12,7 @@ import { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { checkForUpdates } from "./update-check/update-check.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -163,5 +164,10 @@ program
     const { run } = await import("./commands/open.js");
     await run(page !== undefined ? { page } : {});
   });
+
+// Runs before every subcommand. Silent on network errors; hard-stops on min_cli_version violation.
+program.hook("preAction", async () => {
+  await checkForUpdates({ currentVersion: pkg.version });
+});
 
 await program.parseAsync(process.argv);
