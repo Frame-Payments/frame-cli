@@ -21,6 +21,7 @@ function parseSkillFrontmatter(raw: string): Record<string, unknown> {
 describe("skills/frame-cli/SKILL.md", () => {
   const raw = readFileSync(SKILL_PATH, "utf-8");
   const fm = parseSkillFrontmatter(raw);
+  const body = raw.replace(/^---[\s\S]*?---/, "");
 
   it("has a name field equal to 'frame-cli'", () => {
     expect(fm.name).toBe("frame-cli");
@@ -45,7 +46,6 @@ describe("skills/frame-cli/SKILL.md", () => {
   });
 
   it("body contains all 8 documented commands (omits placeholder)", () => {
-    const body = raw.replace(/^---[\s\S]*?---/, "");
     const commands = [
       "frame login",
       "frame logout",
@@ -65,7 +65,6 @@ describe("skills/frame-cli/SKILL.md", () => {
   });
 
   it("body contains all 16 canonical trigger event codes", () => {
-    const body = raw.replace(/^---[\s\S]*?---/, "");
     const codes = [
       "account.created",
       "account.updated",
@@ -90,7 +89,6 @@ describe("skills/frame-cli/SKILL.md", () => {
   });
 
   it("body contains the deprecated→canonical event map", () => {
-    const body = raw.replace(/^---[\s\S]*?---/, "");
     const deprecated = [
       "customer.created",
       "customer.updated",
@@ -105,7 +103,6 @@ describe("skills/frame-cli/SKILL.md", () => {
   });
 
   it("body contains a Gotchas section", () => {
-    const body = raw.replace(/^---[\s\S]*?---/, "");
     expect(body).toContain("Gotchas");
   });
 });
