@@ -1,11 +1,3 @@
-/**
- * `frame logs tail` — stream real-time API request logs from LogsChannel.
- *
- * Subscribes to the Rails-side LogsChannel via transport/cable-client,
- * formats each entry as one color-coded line (green 2xx, yellow 4xx, red 5xx),
- * and supports client-side filters and JSON output.
- */
-
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createCableClient } from "../transport/cable-client.js";
@@ -25,8 +17,6 @@ export interface LogsTailOptions extends LogFilters {
   wsUrl?: string;
 }
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
 const DEFAULT_WS_URL = "wss://api.frame.dev/cable";
 
 // ─── Command entry-point ───────────────────────────────────────────────────────
@@ -35,10 +25,7 @@ const DEFAULT_WS_URL = "wss://api.frame.dev/cable";
  * Run `frame logs tail`.
  *
  * @param opts   CLI options (filters, --json, optional wsUrl override).
- * @param signal An AbortSignal that terminates the stream. In production usage
- *               no signal is passed and the process runs until SIGINT/kill.
- *               In tests, pass an already-aborted signal to resolve immediately
- *               after setup (synchronously-delivered mock events are still processed).
+ * @param signal AbortSignal that terminates the stream; omit to run until process exit.
  */
 export async function run(opts: LogsTailOptions, signal?: AbortSignal): Promise<void> {
   const cred = await get();
@@ -64,16 +51,10 @@ export async function run(opts: LogsTailOptions, signal?: AbortSignal): Promise<
       }
     });
 
-    // Block until signalled or killed.
     await new Promise<void>((resolve) => {
-      if (signal) {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener("abort", () => resolve(), { once: true });
-      }
-      // No signal → run forever (until process exits).
+      if (!signal) return; // no signal → run forever (until process exits)
+      if (signal.aborted) return resolve();
+      signal.addEventListener("abort", () => resolve(), { once: true });
     });
 
     client.disconnect();

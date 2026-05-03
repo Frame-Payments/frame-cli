@@ -34,10 +34,7 @@ const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 const RED = "\x1b[31m";
 
-/**
- * Wrap a status code string in the appropriate ANSI color.
- *   2xx → green, 4xx → yellow, 5xx → red, anything else → no color.
- */
+/** 2xx → green, 4xx → yellow, 5xx → red, anything else → no color. */
 export function colorStatus(status: number): string {
   const str = String(status);
   if (status >= 200 && status < 300) return `${GREEN}${str}${RESET}`;
@@ -106,7 +103,7 @@ export function matchesFilters(entry: LogEntry, filters: LogFilters): boolean {
   }
 
   // Path filter — glob match
-  if (filterPath && filterPath.length > 0) {
+  if (filterPath) {
     const re = globToRegExp(filterPath);
     if (!re.test(entry.path)) return false;
   }

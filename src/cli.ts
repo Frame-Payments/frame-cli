@@ -76,6 +76,11 @@ program
 
 // ── logs ────────────────────────────────────────────────────────────────────────
 
+/** Accumulate comma-separated values across repeated --flag invocations. */
+function collectCsv(val: string, prev: string[]): string[] {
+  return [...prev, ...val.split(",").map((s) => s.trim())];
+}
+
 const logs = program.command("logs").description("Log streaming commands");
 
 logs
@@ -84,13 +89,13 @@ logs
   .option(
     "--filter-status <statuses>",
     "Filter by status class or exact code, comma-separated (e.g. 4xx,5xx or 200)",
-    (val: string, prev: string[]) => [...prev, ...val.split(",").map((s) => s.trim())],
+    collectCsv,
     [] as string[],
   )
   .option(
     "--filter-method <methods>",
     "Filter by HTTP method, comma-separated (e.g. POST,GET)",
-    (val: string, prev: string[]) => [...prev, ...val.split(",").map((s) => s.trim())],
+    collectCsv,
     [] as string[],
   )
   .option("--filter-path <pattern>", "Filter by path glob (e.g. /transfers/*)")
