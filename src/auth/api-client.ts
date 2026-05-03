@@ -38,6 +38,7 @@ export class ApiError extends Error {
 
 export interface ApiClient {
   get<T = unknown>(path: string): Promise<T>;
+  post<T = unknown>(path: string, body?: unknown): Promise<T>;
 }
 
 export interface ApiClientOptions {
@@ -75,14 +76,16 @@ function serverErrorMessage(body: unknown): string | null {
 export function createApiClient(opts: ApiClientOptions): ApiClient {
   const base = opts.baseUrl ?? DEFAULT_BASE_URL;
 
-  async function request<T>(path: string): Promise<T> {
+  async function request<T>(method: string, path: string, reqBody?: unknown): Promise<T> {
     const url = `${base}${path}`;
     const resp = await fetch(url, {
+      method,
       headers: {
         Authorization: `Bearer ${opts.apiKey}`,
         "X-Frame-API-Version": API_VERSION,
         "Content-Type": "application/json",
       },
+      ...(reqBody !== undefined ? { body: JSON.stringify(reqBody) } : {}),
     });
 
     const body = (await resp.json()) as unknown;
@@ -95,5 +98,8 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     return body as T;
   }
 
-  return { get: request };
+  return {
+    get: <T>(path: string) => request<T>("GET", path),
+    post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
+  };
 }

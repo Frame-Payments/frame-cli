@@ -74,4 +74,26 @@ program
     await run();
   });
 
+// `frame events resend <evt_id>`
+const eventsCmd = program
+  .command("events")
+  .description("Manage sandbox events");
+
+eventsCmd
+  .command("resend <evt_id>")
+  .description("Re-deliver a previously emitted event verbatim")
+  .action(async (evtId: string) => {
+    const { run } = await import("./commands/events-resend.js");
+    await run({ eventId: evtId });
+  });
+
+// `frame open [<page>]`
+program
+  .command("open [page]")
+  .description("Open a dashboard page in the default browser")
+  .action(async (page?: string) => {
+    const { run } = await import("./commands/open.js");
+    await run(page !== undefined ? { page } : {});
+  });
+
 await program.parseAsync(process.argv);
