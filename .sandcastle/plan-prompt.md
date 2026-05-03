@@ -1,10 +1,10 @@
 # ISSUES
 
-Here are the open Linear issues tagged `ready-for-agent` in this team:
+Here are the open Linear issues tagged `ready-for-cli-agent` in this team:
 
 <issues-json>
 
-!`linear issue query --team FRA --label ready-for-agent --state backlog --state unstarted --json --limit 0 | jq '[.[] | {id: .identifier, title, body: .description, labels: [.labels[]?.name // .labels[]? // empty], state: .state.name}]'`
+!`linear issue query --team FRA --label ready-for-cli-agent --state backlog --state unstarted --json --limit 0 | jq '[.nodes[] | {id: .identifier, title, body: .description, labels: [.labels.nodes[]?.name], state: .state.name}]'`
 
 </issues-json>
 
