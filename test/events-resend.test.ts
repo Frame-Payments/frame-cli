@@ -65,7 +65,7 @@ describe("frame events resend — argument parsing", () => {
 
 describe("frame events resend — happy path", () => {
   it("calls POST /events/:id/resend and prints result", async () => {
-    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001" });
+    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001", devMode: true });
     const mockPost = vi.fn().mockResolvedValueOnce({ id: "evt_123", status: "delivered" });
     mockCreateApiClient.mockReturnValueOnce({ get: vi.fn(), post: mockPost });
 
@@ -78,7 +78,7 @@ describe("frame events resend — happy path", () => {
   });
 
   it("prints the safety banner before output", async () => {
-    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001" });
+    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001", devMode: true });
     const mockPost = vi.fn().mockResolvedValueOnce({ id: "evt_123", status: "delivered" });
     mockCreateApiClient.mockReturnValueOnce({ get: vi.fn(), post: mockPost });
 
@@ -91,7 +91,7 @@ describe("frame events resend — happy path", () => {
 
 describe("frame events resend — deprecated-resource error path", () => {
   it("surfaces a deprecated-resource message from the API", async () => {
-    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001" });
+    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001", devMode: true });
     const { ApiError } = await import("../src/auth/api-client.js");
     const mockPost = vi
       .fn()

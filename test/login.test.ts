@@ -67,7 +67,12 @@ describe("frame login — happy path", () => {
     const rl = makeRlInterface("sk_test_abc123");
     mockCreateInterface.mockReturnValueOnce(rl as ReturnType<typeof rlPromises.createInterface>);
 
-    const mockGet = vi.fn().mockResolvedValueOnce({ id: "acct_001", name: "ACME Corp" });
+    const mockGet = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: true,
+      api_version: "v1",
+    });
     mockCreateApiClient.mockReturnValueOnce({ get: mockGet });
     mockSet.mockResolvedValueOnce(undefined);
 
@@ -77,6 +82,7 @@ describe("frame login — happy path", () => {
     expect(mockSet).toHaveBeenCalledWith({
       apiKey: "sk_test_abc123",
       merchant: "acct_001",
+      devMode: true,
     });
   });
 
@@ -84,7 +90,12 @@ describe("frame login — happy path", () => {
     const rl = makeRlInterface("sk_test_abc123");
     mockCreateInterface.mockReturnValueOnce(rl as ReturnType<typeof rlPromises.createInterface>);
 
-    const mockGet = vi.fn().mockResolvedValueOnce({ id: "acct_001", name: "ACME Corp" });
+    const mockGet = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: true,
+      api_version: "v1",
+    });
     mockCreateApiClient.mockReturnValueOnce({ get: mockGet });
     mockSet.mockResolvedValueOnce(undefined);
 
@@ -92,6 +103,25 @@ describe("frame login — happy path", () => {
 
     const allOutput = stdoutSpy.mock.calls.map((a) => String(a[0])).join("");
     expect(allOutput).toContain("Logged in");
+    expect(allOutput).toContain("ACME Corp");
+  });
+});
+
+describe("frame login \u2014 dev_mode rejection", () => {
+  it("refuses to persist a credential when /me reports dev_mode=false", async () => {
+    const rl = makeRlInterface("sk_test_someprodkey");
+    mockCreateInterface.mockReturnValueOnce(rl as ReturnType<typeof rlPromises.createInterface>);
+
+    const mockGet = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: false,
+      api_version: "v1",
+    });
+    mockCreateApiClient.mockReturnValueOnce({ get: mockGet });
+
+    await expect(run()).rejects.toThrow(/sandbox/i);
+    expect(mockSet).not.toHaveBeenCalled();
   });
 });
 

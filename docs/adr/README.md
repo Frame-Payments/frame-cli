@@ -8,6 +8,8 @@ This file is a pointer index. CLI-internal ADRs — decisions that affect only t
 
 - **[ADR-0001](./0001-bundled-agent-skill.md)** — The Frame CLI bundles an agentskills.io-compliant `skills/frame-cli/SKILL.md` inside the npm tarball, installable via `npx skills add Frame-Payments/frame-cli`. The skill's `description` and documented surface are public contract.
 
+- **[ADR-0002](./0002-api-response-types-mirror-wire-format.md)** — API response types mirror the wire format (snake_case). Internal/domain types stay camelCase. Translation happens explicitly at the call site, never in a hidden helper or codegen transform.
+
 ## Inherited decisions (live in `frame/docs/adr/`)
 
 - **[ADR-0006](../../../frame/docs/adr/0006-cli-canonical-public-surface.md)** — The Frame CLI exposes only the canonical public surface (Transfer, Account, Capability, Refund, Webhook, Product, Invoice). Deprecated public terms (Customer, ChargeIntent, Payout) do not get CLI commands.

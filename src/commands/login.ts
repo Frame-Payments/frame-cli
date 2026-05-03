@@ -57,15 +57,30 @@ export async function run(opts: LoginOptions = {}): Promise<void> {
   const client = createApiClient({ apiKey, baseUrl: resolvedBaseUrl });
   const me = await client.get<MeResponse>("/me");
 
-  // Persist to keychain. Only record baseUrl when it differs from the
-  // hardcoded production default — keeps the common case minimal.
-  const cred: Credential = { apiKey, merchant: me.id };
+  // Defence in depth: even if a future key prefix scheme bypasses the
+  // sk_live_* check above, refuse to persist a non-sandbox credential.
+  // The CLI is sandbox-only (ADR-0007).
+  if (!me.dev_mode) {
+    throw new Error(
+      "This API key is not in sandbox/dev mode. The Frame CLI is sandbox-only.",
+    );
+  }
+
+  // Persist to keychain. Map snake_case wire fields to camelCase domain
+  // fields at this boundary (ADR-0002). Only record baseUrl when it
+  // differs from the hardcoded production default — keeps the common
+  // case minimal.
+  const cred: Credential = {
+    apiKey,
+    merchant: me.merchant_id,
+    devMode: me.dev_mode,
+  };
   if (resolvedBaseUrl !== HARDCODED_DEFAULT_BASE_URL) {
     cred.baseUrl = resolvedBaseUrl;
   }
   await set(cred);
 
   process.stdout.write(
-    `Logged in as ${me.name} (${me.id}). Credential saved to keychain.\n`,
+    `Logged in as ${me.merchant_name} (${me.merchant_id}). Credential saved to keychain.\n`,
   );
 }

@@ -29,7 +29,9 @@ export async function run(opts: EventsResendOptions): Promise<void> {
   const client = createApiClient({ apiKey: cred.apiKey, baseUrl: resolveBaseUrl(cred) });
   const result = await client.post<ResendResponse>(`/events/${opts.eventId}/resend`);
 
-  await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {
+  await runWithBanner(
+    { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
+    async () => {
     process.stdout.write(`event id: ${result.id}\nstatus:   ${result.status}\n`);
   });
 }

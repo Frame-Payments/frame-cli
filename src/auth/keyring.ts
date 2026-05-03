@@ -21,6 +21,13 @@ export interface Credential {
   apiKey: string;
   merchant: string;
   /**
+   * Whether the API key is a sandbox/dev-mode key. Captured from
+   * `me.dev_mode` at login time so commands can render an honest banner
+   * without re-fetching `/me`. The CLI is sandbox-only (ADR-0007); login
+   * refuses to persist a credential with `devMode: false`.
+   */
+  devMode: boolean;
+  /**
    * Optional API base URL this credential was issued against. Set when
    * `frame login --base-url <url>` (or the FRAME_API_BASE_URL env var) is
    * used to point the CLI at a non-production host. Omitted credentials

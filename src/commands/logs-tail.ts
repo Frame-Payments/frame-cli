@@ -41,7 +41,9 @@ export async function run(opts: LogsTailOptions, signal?: AbortSignal): Promise<
     throw new Error("Not logged in. Run `frame login` first.");
   }
 
-  await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {
+  await runWithBanner(
+    { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
+    async () => {
     const wsUrl = opts.wsUrl ?? deriveCableUrl(resolveBaseUrl(cred));
     const client = createCableClient(wsUrl);
 

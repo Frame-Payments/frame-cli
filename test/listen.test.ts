@@ -70,7 +70,7 @@ describe("frame listen", () => {
     vi.stubGlobal("fetch", mockFetch);
     vi.clearAllMocks();
 
-    mockGet.mockResolvedValue({ apiKey: "sk_test_xyz", merchant: "acct_001" });
+    mockGet.mockResolvedValue({ apiKey: "sk_test_xyz", merchant: "acct_001", devMode: true });
   });
 
   afterEach(async () => {

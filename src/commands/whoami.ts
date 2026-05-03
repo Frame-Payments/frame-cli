@@ -16,7 +16,12 @@ export async function run(): Promise<void> {
   const client = createApiClient({ apiKey: cred.apiKey, baseUrl: resolveBaseUrl(cred) });
   const me = await client.get<MeResponse>("/me");
 
-  await runWithBanner({ merchant: me.id, mode: "sandbox" }, async () => {
-    process.stdout.write(`merchant: ${me.name} (${me.id})\n`);
-  });
+  await runWithBanner(
+    { merchant: me.merchant_id, mode: me.dev_mode ? "sandbox" : "live" },
+    async () => {
+      process.stdout.write(
+        `merchant: ${me.merchant_name} (${me.merchant_id})\n`,
+      );
+    },
+  );
 }

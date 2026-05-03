@@ -99,7 +99,9 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
     channelParams.skip_endpoints = true;
   }
 
-  await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {
+  await runWithBanner(
+    { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
+    async () => {
     const client = createCableClient(wsUrl.toString());
 
     let sessionSecret: string | null = null;

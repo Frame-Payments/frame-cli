@@ -38,6 +38,8 @@ A merchant who runs `frame customers create` should hit a clear error pointing t
 
 **canonical event**: an event code on the `transfer.*`, `account.*`, `capability.*`, `refund.*`, or `invoice.*` namespace. The CLI emits and documents these. Legacy `charge_intent.*`, `payout.*`, `customer.*`, and `charge.*` events still fire in the underlying system (and existing webhook subscribers still receive them), but the CLI does not expose ways to trigger them.
 
+**API response type** vs **domain type**: TypeScript interfaces describing HTTP response bodies (`MeResponse` and any future codegen'd `*Response`) use the wire format's snake_case field names verbatim (`merchant_id`, `dev_mode`). Internal types like `Credential` and banner contexts use camelCase. Translation happens once, at the call site that consumes the response. Do not introduce a recursive `camelize` helper or per-endpoint mappers — see ADR-0002 for the rationale.
+
 ## Reading guide
 
-When in doubt about a domain term: `frame/CONTEXT.md` is the source of truth. When in doubt about whether a CLI command should exist: ADR-0006. When in doubt about whether a feature is in scope: ADR-0007 (sandbox-only). When in doubt about how the streaming transports work: ADR-0008.
+When in doubt about a domain term: `frame/CONTEXT.md` is the source of truth. When in doubt about whether a CLI command should exist: ADR-0006. When in doubt about whether a feature is in scope: ADR-0007 (sandbox-only). When in doubt about how the streaming transports work: ADR-0008. When in doubt about the casing of a field on a response type: ADR-0002.

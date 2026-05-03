@@ -181,7 +181,9 @@ export async function run(eventCode: string): Promise<void> {
   const client = createApiClient({ apiKey: cred.apiKey, baseUrl: resolveBaseUrl(cred) });
   const fixture = loadFixture(eventCode);
 
-  await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {
+  await runWithBanner(
+    { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
+    async () => {
     process.stdout.write(`Triggering ${eventCode}…\n`);
     const ctx: Record<string, string> = {};
 

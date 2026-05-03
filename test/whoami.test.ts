@@ -49,8 +49,17 @@ afterEach(() => {
 
 describe("frame whoami", () => {
   it("prints the active merchant name via the banner wrapper", async () => {
-    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001" });
-    const mockFetch = vi.fn().mockResolvedValueOnce({ id: "acct_001", name: "ACME Corp" });
+    mockGet.mockResolvedValueOnce({
+      apiKey: "sk_test_xyz",
+      merchant: "acct_001",
+      devMode: true,
+    });
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: true,
+      api_version: "v1",
+    });
     mockCreateApiClient.mockReturnValueOnce({ get: mockFetch });
 
     await run();
@@ -59,11 +68,21 @@ describe("frame whoami", () => {
       stdoutSpy.mock.calls.map((a) => String(a[0])).join("") +
       stderrSpy.mock.calls.map((a) => String(a[0])).join("");
     expect(allOutput).toContain("acct_001");
+    expect(allOutput).toContain("ACME Corp");
   });
 
-  it("prints mode: sandbox in the banner", async () => {
-    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001" });
-    const mockFetch = vi.fn().mockResolvedValueOnce({ id: "acct_001", name: "ACME Corp" });
+  it("prints mode: sandbox in the banner when /me reports dev_mode=true", async () => {
+    mockGet.mockResolvedValueOnce({
+      apiKey: "sk_test_xyz",
+      merchant: "acct_001",
+      devMode: true,
+    });
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: true,
+      api_version: "v1",
+    });
     mockCreateApiClient.mockReturnValueOnce({ get: mockFetch });
 
     await run();
@@ -72,9 +91,38 @@ describe("frame whoami", () => {
     expect(bannerOutput).toContain("mode: sandbox");
   });
 
+  it("prints mode: live in the banner when /me reports dev_mode=false", async () => {
+    mockGet.mockResolvedValueOnce({
+      apiKey: "sk_test_xyz",
+      merchant: "acct_001",
+      devMode: true, // stored cred says sandbox; banner derives from /me response
+    });
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: false,
+      api_version: "v1",
+    });
+    mockCreateApiClient.mockReturnValueOnce({ get: mockFetch });
+
+    await run();
+
+    const bannerOutput = stderrSpy.mock.calls.map((a) => String(a[0])).join("");
+    expect(bannerOutput).toContain("mode: live");
+  });
+
   it("calls GET /me with the stored api key", async () => {
-    mockGet.mockResolvedValueOnce({ apiKey: "sk_test_xyz", merchant: "acct_001" });
-    const mockFetch = vi.fn().mockResolvedValueOnce({ id: "acct_001", name: "ACME Corp" });
+    mockGet.mockResolvedValueOnce({
+      apiKey: "sk_test_xyz",
+      merchant: "acct_001",
+      devMode: true,
+    });
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      merchant_id: "acct_001",
+      merchant_name: "ACME Corp",
+      dev_mode: true,
+      api_version: "v1",
+    });
     mockCreateApiClient.mockReturnValueOnce({ get: mockFetch });
 
     await run();

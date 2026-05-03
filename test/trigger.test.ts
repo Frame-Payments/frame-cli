@@ -67,7 +67,7 @@ beforeEach(() => {
   stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
-  mockKeyringGet.mockResolvedValue({ apiKey: "sk_test_abc", merchant: "acct_test" });
+  mockKeyringGet.mockResolvedValue({ apiKey: "sk_test_abc", merchant: "acct_test", devMode: true });
 });
 
 afterEach(() => {

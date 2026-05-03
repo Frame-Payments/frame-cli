@@ -51,10 +51,17 @@ export function resolveBaseUrl(cred: { baseUrl?: string } | null | undefined): s
 // Shared response types
 // ---------------------------------------------------------------------------
 
-/** Shape returned by GET /me. */
+/**
+ * Shape returned by GET /me.
+ *
+ * Field names mirror the wire format (snake_case). This is intentional —
+ * see ADR-0002. Map to camelCase domain types at the call site.
+ */
 export interface MeResponse {
-  id: string;
-  name: string;
+  merchant_id: string;
+  merchant_name: string;
+  dev_mode: boolean;
+  api_version: string;
 }
 
 // ---------------------------------------------------------------------------

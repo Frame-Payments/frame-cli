@@ -45,7 +45,7 @@ beforeEach(() => {
   stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   // Default: logged-in credential
-  mockGet.mockResolvedValue({ apiKey: "sk_test_xyz", merchant: "acct_001" });
+  mockGet.mockResolvedValue({ apiKey: "sk_test_xyz", merchant: "acct_001", devMode: true });
 });
 
 afterEach(() => {
