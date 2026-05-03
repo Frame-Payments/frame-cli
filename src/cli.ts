@@ -12,6 +12,7 @@ import { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { checkForUpdates } from "./update-check/update-check.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -73,5 +74,12 @@ program
     const { run } = await import("./commands/whoami.js");
     await run();
   });
+
+// Run the update check before every subcommand.
+// Uses Commander's preAction hook so it fires regardless of which command
+// is invoked. Silent on network errors; hard-stops on min_cli_version violation.
+program.hook("preAction", async () => {
+  await checkForUpdates({ currentVersion: pkg.version });
+});
 
 await program.parseAsync(process.argv);
