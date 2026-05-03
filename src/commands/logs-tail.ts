@@ -1,6 +1,7 @@
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createCableClient } from "../transport/cable-client.js";
+import { deriveCableUrl } from "../transport/derive-cable-url.js";
 import { resolveBaseUrl } from "../auth/api-client.js";
 import {
   formatLogLine,
@@ -16,15 +17,6 @@ export interface LogsTailOptions extends LogFilters {
   json?: boolean;
   /** WebSocket URL override — used in tests and for custom server targets. */
   wsUrl?: string;
-}
-
-/**
- * Derive the ActionCable WebSocket URL from an HTTP(S) API base URL.
- * https://api.framepayments.com → wss://api.framepayments.com/cable
- */
-function deriveCableUrl(apiBaseUrl: string): string {
-  const wsScheme = apiBaseUrl.startsWith("https://") ? "wss://" : "ws://";
-  return apiBaseUrl.replace(/^https?:\/\//, wsScheme) + "/cable";
 }
 
 // ─── Command entry-point ───────────────────────────────────────────────────────

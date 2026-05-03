@@ -19,6 +19,7 @@ import { createHmac } from "node:crypto";
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createCableClient } from "../transport/cable-client.js";
+import { deriveCableUrl } from "../transport/derive-cable-url.js";
 import { resolveBaseUrl } from "../auth/api-client.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -56,15 +57,6 @@ interface EventMessage {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Derive the ActionCable WebSocket URL from the HTTP API base URL.
- * https://api.framepayments.com → wss://api.framepayments.com/cable
- */
-function deriveCableUrl(apiBaseUrl: string): string {
-  const wsScheme = apiBaseUrl.startsWith("https://") ? "wss://" : "ws://";
-  return apiBaseUrl.replace(/^https?:\/\//, wsScheme) + "/cable";
-}
 
 /** Compute the X-Frame-Signature header value for a request body. */
 function computeSignature(secret: string, body: string): string {
