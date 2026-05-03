@@ -72,14 +72,12 @@ export async function createFakeCableServer(
 
   // Per-connection subscriptions: ws → Set<identifier>
   const clientSubs = new Map<WebSocket, Set<string>>();
-  const allClients = new Set<WebSocket>();
 
   // Global message buffer for replay
   const buffer: BufferedEvent[] = [];
   const received: ReceivedMessage[] = [];
 
   wss.on("connection", (ws) => {
-    allClients.add(ws);
     clientSubs.set(ws, new Set());
 
     // ActionCable handshake: server always sends welcome first
@@ -147,7 +145,6 @@ export async function createFakeCableServer(
     });
 
     ws.on("close", () => {
-      allClients.delete(ws);
       clientSubs.delete(ws);
     });
   });
@@ -177,7 +174,7 @@ export async function createFakeCableServer(
 
     ping() {
       const ts = Math.floor(Date.now() / 1_000);
-      for (const ws of allClients) {
+      for (const ws of clientSubs.keys()) {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: "ping", message: ts }));
         }
@@ -185,15 +182,14 @@ export async function createFakeCableServer(
     },
 
     forceDisconnect() {
-      for (const ws of allClients) {
+      for (const ws of clientSubs.keys()) {
         ws.close();
       }
     },
 
     close(): Promise<void> {
       return new Promise((resolve) => {
-        // Close active clients first so the server has no lingering sockets
-        for (const ws of allClients) {
+        for (const ws of clientSubs.keys()) {
           ws.terminate();
         }
         wss.close(() => {

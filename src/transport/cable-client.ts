@@ -88,7 +88,6 @@ export function createCableClient(
   const subscriptions = new Map<string, SubscriptionState>();
   let ws: WebSocket | null = null;
   let reconnectAttempts = 0;
-  let globalDisconnectedAt: number | null = null;
   let stopped = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -119,7 +118,7 @@ export function createCableClient(
       now - state.disconnectedAt < replayWindowMs;
 
     const cmd: Record<string, unknown> = { command: "subscribe", identifier };
-    if (withinWindow && state.lastReceivedAt != null) {
+    if (withinWindow) {
       cmd["last_received_at"] = state.lastReceivedAt;
     }
     rawSend(cmd);
@@ -176,22 +175,18 @@ export function createCableClient(
 
     ws.on("open", () => {
       reconnectAttempts = 0;
-      // Re-subscribe all registered channels first (sendSubscribe reads
-      // state.disconnectedAt to decide whether to request replay), then
-      // clear the global disconnect marker.
       for (const state of subscriptions.values()) {
         sendSubscribe(state);
       }
-      globalDisconnectedAt = null;
     });
 
     ws.on("message", (raw: Buffer | string) => handleRawMessage(raw));
 
     ws.on("close", () => {
       if (!stopped) {
-        globalDisconnectedAt = Date.now();
+        const disconnectedAt = Date.now();
         for (const state of subscriptions.values()) {
-          state.disconnectedAt = globalDisconnectedAt;
+          state.disconnectedAt = disconnectedAt;
         }
         scheduleReconnect();
       }
