@@ -40,6 +40,10 @@ export interface FakeCableServer {
   readonly url: string;
   /** All messages received from clients, in arrival order. */
   readonly received: ReceivedMessage[];
+  /** Authorization header values seen on each successful WS upgrade, in arrival order. */
+  readonly authHeaders: string[];
+  /** Number of WS upgrades the server rejected for missing/invalid Authorization. */
+  readonly rejectedUpgrades: { reason: string }[];
   /**
    * Push a message to every client subscribed to channelName+params.
    * The message is also buffered for potential replay.
@@ -64,11 +68,60 @@ function makeIdentifier(
 
 // ─── Factory ───────────────────────────────────────────────────────────────────
 
+export interface FakeCableServerOptions {
+  /** Replay window for buffered events. Default 5 minutes. */
+  replayWindowMs?: number;
+  /**
+   * If set, the server requires `Authorization: Bearer <expectedApiKey>` on every
+   * WS upgrade and rejects others with a 401. Mirrors
+   * `Cli::ApplicationCable::Connection#bearer_token` on the Rails side, so the
+   * fixture exercises the same wire contract as production.
+   *
+   * Default: undefined → no auth enforcement (back-compat for older tests).
+   */
+  expectedApiKey?: string;
+}
+
 export async function createFakeCableServer(
-  replayWindowMs = 5 * 60 * 1_000,
+  optsOrReplayWindow: FakeCableServerOptions | number = {},
 ): Promise<FakeCableServer> {
+  const opts: FakeCableServerOptions =
+    typeof optsOrReplayWindow === "number"
+      ? { replayWindowMs: optsOrReplayWindow }
+      : optsOrReplayWindow;
+  const replayWindowMs = opts.replayWindowMs ?? 5 * 60 * 1_000;
+  const expectedApiKey = opts.expectedApiKey;
+
   const httpServer = createServer();
-  const wss = new WebSocketServer({ server: httpServer });
+  // `noServer: true` lets us own the upgrade handshake so we can validate the
+  // Authorization header before WebSocketServer accepts the socket.
+  const wss = new WebSocketServer({ noServer: true });
+
+  const authHeaders: string[] = [];
+  const rejectedUpgrades: { reason: string }[] = [];
+
+  httpServer.on("upgrade", (req, socket, head) => {
+    const authHeader = req.headers["authorization"];
+    if (expectedApiKey != null) {
+      if (typeof authHeader !== "string" || authHeader.length === 0) {
+        rejectedUpgrades.push({ reason: "missing Authorization header" });
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      const [scheme, token] = authHeader.split(" ");
+      if (scheme !== "Bearer" || token !== expectedApiKey) {
+        rejectedUpgrades.push({ reason: `bad Authorization: ${authHeader}` });
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+    }
+    if (typeof authHeader === "string") authHeaders.push(authHeader);
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  });
 
   // Per-connection subscriptions: ws → Set<identifier>
   const clientSubs = new Map<WebSocket, Set<string>>();
@@ -159,6 +212,8 @@ export async function createFakeCableServer(
   return {
     url,
     received,
+    authHeaders,
+    rejectedUpgrades,
 
     send(channelName: string, params: Record<string, unknown>, data: unknown) {
       const identifier = makeIdentifier(channelName, params);

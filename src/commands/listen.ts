@@ -76,12 +76,12 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
     throw new Error("Not logged in. Run `frame login` first.");
   }
 
-  // Build the WebSocket URL, appending the API key as a query parameter so
-  // the Rails server can authenticate the connection.
-  const baseWsUrl =
-    opts.cableUrl ?? deriveCableUrl(resolveBaseUrl(cred));
-  const wsUrl = new URL(baseWsUrl);
-  wsUrl.searchParams.set("api_key", cred.apiKey);
+  // Authentication is by `Authorization: Bearer <apiKey>` on the WS upgrade;
+  // see `Cli::ApplicationCable::Connection` (Rails) and ADR-0008. Earlier
+  // versions of this command appended `?api_key=...` as a query param, but
+  // the Rails connection class never reads it — the connection only worked by
+  // accident in tests because the fake server didn't enforce auth.
+  const wsUrl = opts.cableUrl ?? deriveCableUrl(resolveBaseUrl(cred));
 
   const channelParams: Record<string, unknown> = {};
   if (opts.events && opts.events.length > 0) {
@@ -94,12 +94,14 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
   await runWithBanner(
     { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
     async () => {
-    const client = createCableClient(wsUrl.toString());
+    const client = createCableClient(wsUrl, { apiKey: cred.apiKey });
 
     let sessionSecret: string | null = null;
 
     const subscription = client
-      .subscribe("WebhookListenChannel", channelParams)
+      // Channel class is `Cli::WebhookListenChannel` server-side; the bare
+      // name fails the constant lookup with `Subscription class not found`.
+      .subscribe("Cli::WebhookListenChannel", channelParams)
       .on("session_started", (raw) => {
         const msg = raw as SessionStartedMessage;
         sessionSecret = msg.session_secret;

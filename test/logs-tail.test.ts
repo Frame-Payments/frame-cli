@@ -89,10 +89,26 @@ async function runAborted(opts: Parameters<typeof run>[0]) {
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
 describe("frame logs tail", () => {
+  // ── Auth contract ────────────────────────────────────────────────────────────
+  //
+  // Pins the call site that produced the original "forgot to send Authorization"
+  // bug. The deeper wire-level check lives in the cable-client tests against the
+  // auth-enforcing FakeCableServer.
+
+  it("passes the credential's apiKey to createCableClient for the WS Authorization header", async () => {
+    makeMockClient([]);
+
+    await runAborted({});
+
+    expect(mockCreateCableClient).toHaveBeenCalledTimes(1);
+    const [, options] = mockCreateCableClient.mock.calls[0]!;
+    expect(options).toMatchObject({ apiKey: "sk_test_xyz" });
+  });
+
   // ── Output format ────────────────────────────────────────────────────────────
 
   it("prints method, path, status, and duration on one line per entry", async () => {
-    makeMockClient([{ method: "GET", path: "/transfers", status: 200, duration: 42 }]);
+    makeMockClient([{ method: "GET", path: "/transfers", status: 200, duration_ms: 42 }]);
 
     await runAborted({});
 
@@ -104,7 +120,7 @@ describe("frame logs tail", () => {
   });
 
   it("wraps 2xx status in green ANSI color", async () => {
-    makeMockClient([{ method: "GET", path: "/me", status: 200, duration: 10 }]);
+    makeMockClient([{ method: "GET", path: "/me", status: 200, duration_ms: 10 }]);
 
     await runAborted({});
 
@@ -113,7 +129,7 @@ describe("frame logs tail", () => {
   });
 
   it("wraps 4xx status in yellow ANSI color", async () => {
-    makeMockClient([{ method: "POST", path: "/transfers", status: 422, duration: 15 }]);
+    makeMockClient([{ method: "POST", path: "/transfers", status: 422, duration_ms: 15 }]);
 
     await runAborted({});
 
@@ -122,7 +138,7 @@ describe("frame logs tail", () => {
   });
 
   it("wraps 5xx status in red ANSI color", async () => {
-    makeMockClient([{ method: "GET", path: "/accounts", status: 500, duration: 100 }]);
+    makeMockClient([{ method: "GET", path: "/accounts", status: 500, duration_ms: 100 }]);
 
     await runAborted({});
 
@@ -133,7 +149,7 @@ describe("frame logs tail", () => {
   // ── --json mode ──────────────────────────────────────────────────────────────
 
   it("--json emits a JSON object per line with no ANSI codes", async () => {
-    const entry = { method: "GET", path: "/transfers", status: 200, duration: 42 };
+    const entry = { method: "GET", path: "/transfers", status: 200, duration_ms: 42 };
     makeMockClient([entry]);
 
     await runAborted({ json: true });
@@ -148,8 +164,8 @@ describe("frame logs tail", () => {
 
   it("--json emits one object per line for multiple events", async () => {
     makeMockClient([
-      { method: "GET", path: "/me", status: 200, duration: 5 },
-      { method: "POST", path: "/transfers", status: 422, duration: 20 },
+      { method: "GET", path: "/me", status: 200, duration_ms: 5 },
+      { method: "POST", path: "/transfers", status: 422, duration_ms: 20 },
     ]);
 
     await runAborted({ json: true });
@@ -169,9 +185,9 @@ describe("frame logs tail", () => {
 
   it("--filter-status 4xx keeps only 4xx entries", async () => {
     makeMockClient([
-      { method: "GET", path: "/me", status: 200, duration: 5 },
-      { method: "POST", path: "/transfers", status: 422, duration: 20 },
-      { method: "GET", path: "/accounts", status: 500, duration: 30 },
+      { method: "GET", path: "/me", status: 200, duration_ms: 5 },
+      { method: "POST", path: "/transfers", status: 422, duration_ms: 20 },
+      { method: "GET", path: "/accounts", status: 500, duration_ms: 30 },
     ]);
 
     await runAborted({ filterStatus: ["4xx"], json: true });
@@ -188,9 +204,9 @@ describe("frame logs tail", () => {
 
   it("--filter-status accepts multiple classes (4xx,5xx)", async () => {
     makeMockClient([
-      { method: "GET", path: "/me", status: 200, duration: 5 },
-      { method: "POST", path: "/transfers", status: 422, duration: 20 },
-      { method: "GET", path: "/accounts", status: 500, duration: 30 },
+      { method: "GET", path: "/me", status: 200, duration_ms: 5 },
+      { method: "POST", path: "/transfers", status: 422, duration_ms: 20 },
+      { method: "GET", path: "/accounts", status: 500, duration_ms: 30 },
     ]);
 
     await runAborted({ filterStatus: ["4xx", "5xx"], json: true });
@@ -206,9 +222,9 @@ describe("frame logs tail", () => {
 
   it("--filter-status accepts exact code (200)", async () => {
     makeMockClient([
-      { method: "GET", path: "/me", status: 200, duration: 5 },
-      { method: "GET", path: "/other", status: 201, duration: 5 },
-      { method: "POST", path: "/transfers", status: 422, duration: 20 },
+      { method: "GET", path: "/me", status: 200, duration_ms: 5 },
+      { method: "GET", path: "/other", status: 201, duration_ms: 5 },
+      { method: "POST", path: "/transfers", status: 422, duration_ms: 20 },
     ]);
 
     await runAborted({ filterStatus: ["200"], json: true });
@@ -225,9 +241,9 @@ describe("frame logs tail", () => {
 
   it("--filter-method POST keeps only POST requests", async () => {
     makeMockClient([
-      { method: "GET", path: "/me", status: 200, duration: 5 },
-      { method: "POST", path: "/transfers", status: 201, duration: 20 },
-      { method: "DELETE", path: "/transfers/tr_1", status: 200, duration: 10 },
+      { method: "GET", path: "/me", status: 200, duration_ms: 5 },
+      { method: "POST", path: "/transfers", status: 201, duration_ms: 20 },
+      { method: "DELETE", path: "/transfers/tr_1", status: 200, duration_ms: 10 },
     ]);
 
     await runAborted({ filterMethod: ["POST"], json: true });
@@ -244,9 +260,9 @@ describe("frame logs tail", () => {
 
   it("--filter-path /transfers/* keeps only matching paths", async () => {
     makeMockClient([
-      { method: "GET", path: "/transfers", status: 200, duration: 5 },
-      { method: "GET", path: "/transfers/tr_123", status: 200, duration: 10 },
-      { method: "GET", path: "/accounts/acc_1", status: 200, duration: 8 },
+      { method: "GET", path: "/transfers", status: 200, duration_ms: 5 },
+      { method: "GET", path: "/transfers/tr_123", status: 200, duration_ms: 10 },
+      { method: "GET", path: "/accounts/acc_1", status: 200, duration_ms: 8 },
     ]);
 
     await runAborted({ filterPath: "/transfers/*", json: true });
@@ -286,11 +302,14 @@ describe("frame logs tail", () => {
 
   // ── Subscription ─────────────────────────────────────────────────────────────
 
-  it("subscribes to LogsChannel", async () => {
+  it("subscribes to Cli::LogsChannel", async () => {
+    // The bare `LogsChannel` name causes Rails to log
+    // `Subscription class not found: "LogsChannel"` and silently drop the
+    // subscribe — the actual class is namespaced under `Cli::`.
     const { mockClient } = makeMockClient([]);
 
     await runAborted({});
 
-    expect(mockClient.subscribe).toHaveBeenCalledWith("LogsChannel");
+    expect(mockClient.subscribe).toHaveBeenCalledWith("Cli::LogsChannel");
   });
 });

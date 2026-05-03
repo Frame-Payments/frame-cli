@@ -14,8 +14,14 @@ export interface LogEntry {
   method: string;
   path: string;
   status: number;
-  /** Request duration in milliseconds. */
-  duration: number;
+  /**
+   * Request duration in milliseconds. The wire field is `duration_ms`
+   * (snake_case) because the broadcast payload comes straight from
+   * `ApiRequestLog#attributes` on the Rails side — keep this matching the
+   * wire format rather than translating, so a single source of truth lives
+   * in the Rails `api_request_logs` schema.
+   */
+  duration_ms: number;
 }
 
 export interface LogFilters {
@@ -51,7 +57,7 @@ export function colorStatus(status: number): string {
  * The status code is wrapped in ANSI color codes.
  */
 export function formatLogLine(entry: LogEntry): string {
-  return `${entry.method} ${entry.path} ${colorStatus(entry.status)} ${entry.duration}ms`;
+  return `${entry.method} ${entry.path} ${colorStatus(entry.status)} ${entry.duration_ms}ms`;
 }
 
 // ─── Client-side filters ───────────────────────────────────────────────────────

@@ -197,16 +197,23 @@ describe("cable-client", () => {
     expect(gaps[gaps.length - 1]).toBeGreaterThan(gaps[0]! * 1.5);
   });
 
-  // ── 4. ping/pong heartbeat ───────────────────────────────────────────────────
+  // ── 4. ping handling (server→client liveness, no client reply) ─────────────
 
-  it("responds to a server ping with a pong", async () => {
+  it("silently drops server pings (no pong reply)", async () => {
+    // Action Cable's `actioncable-v1-json` protocol defines a server→client
+    // `ping` for liveness, and *no* corresponding `pong`. An earlier version
+    // of this client replied with `{type: "pong"}`, which Rails logged as
+    // `Received unrecognized command in {"type" => "pong", ...}` every 3s.
     client = createCableClient(server.url, { initialDelay: 50 });
     await sleep(40); // let the connection open
 
+    const beforePings = server.received.length;
     server.ping();
+    await sleep(100);
 
-    await waitFor(() => server.received.some((m) => m.command === "pong"), 1_000);
-    expect(server.received.some((m) => m.command === "pong")).toBe(true);
+    // The client must not have sent anything in response to the ping.
+    const newMessages = server.received.slice(beforePings);
+    expect(newMessages).toHaveLength(0);
   });
 
   it("continues to deliver events after multiple ping/pong cycles", async () => {
@@ -332,5 +339,89 @@ describe("cable-client", () => {
     await sleep(80); // nothing should arrive
 
     expect(received.length).toBe(0);
+  });
+
+  // ── auth ────────────────────────────────────────────────────────────────────
+  //
+  // Regression test for the wire-path auth gap that bit `frame logs tail` and
+  // (silently) `frame listen`. The Rails-side `Cli::ApplicationCable::Connection`
+  // reads an `Authorization: Bearer <api-key>` header on the WS upgrade and
+  // rejects the connection if it's missing. Earlier versions of the cable-client
+  // had no way to send that header, so the upgrade succeeded at the socket layer
+  // and was immediately rejected by ActionCable — producing the "open then
+  // immediately close" pattern in the Rails log.
+  //
+  // The fix is twofold:
+  //   1. cable-client accepts an `apiKey` option and forwards it as a
+  //      Bearer-token Authorization header on every (re)connect.
+  //   2. The fake server enforces the same contract Rails does, so the test
+  //      fixture catches the bug rather than papering over it.
+
+  describe("authentication", () => {
+    it("sends Authorization: Bearer <apiKey> on the WS upgrade when configured", async () => {
+      const authedServer = await createFakeCableServer({
+        expectedApiKey: "sk_test_xyz",
+      });
+
+      const authedClient = createCableClient(authedServer.url, {
+        initialDelay: 50,
+        apiKey: "sk_test_xyz",
+      });
+
+      authedClient.subscribe("TestChannel");
+      await waitFor(() =>
+        authedServer.received.some((m) => m.command === "subscribe"),
+      );
+
+      expect(authedServer.authHeaders).toContain("Bearer sk_test_xyz");
+      expect(authedServer.rejectedUpgrades).toEqual([]);
+
+      authedClient.disconnect();
+      await authedServer.close();
+    });
+
+    it("is rejected by the server when no apiKey is supplied", async () => {
+      const authedServer = await createFakeCableServer({
+        expectedApiKey: "sk_test_xyz",
+      });
+
+      // No apiKey — mirrors the bug shape in `frame logs tail` before the fix.
+      const unauthedClient = createCableClient(authedServer.url, {
+        initialDelay: 10_000, // suppress reconnect storm during the test
+      });
+
+      unauthedClient.subscribe("TestChannel");
+      await waitFor(() => authedServer.rejectedUpgrades.length > 0);
+
+      expect(authedServer.rejectedUpgrades.length).toBeGreaterThan(0);
+      expect(authedServer.received).toEqual([]);
+
+      unauthedClient.disconnect();
+      await authedServer.close();
+    });
+
+    it("re-supplies Authorization on reconnect", async () => {
+      const authedServer = await createFakeCableServer({
+        expectedApiKey: "sk_test_xyz",
+      });
+
+      const authedClient = createCableClient(authedServer.url, {
+        initialDelay: 50,
+        apiKey: "sk_test_xyz",
+      });
+
+      authedClient.subscribe("TestChannel");
+      await waitFor(() => authedServer.authHeaders.length >= 1);
+
+      authedServer.forceDisconnect();
+      await waitFor(() => authedServer.authHeaders.length >= 2, 3_000);
+
+      expect(authedServer.authHeaders[0]).toBe("Bearer sk_test_xyz");
+      expect(authedServer.authHeaders[1]).toBe("Bearer sk_test_xyz");
+      expect(authedServer.rejectedUpgrades).toEqual([]);
+
+      authedClient.disconnect();
+      await authedServer.close();
+    });
   });
 });

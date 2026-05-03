@@ -58,7 +58,9 @@ describe("frame listen", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    server = await createFakeCableServer();
+    // Enforce the same wire-level auth contract as the Rails connection class
+    // so this suite catches the "forgot to send Authorization" bug shape.
+    server = await createFakeCableServer({ expectedApiKey: "sk_test_xyz" });
     ac = new AbortController();
     stdoutSpy = vi
       .spyOn(process.stdout, "write")
@@ -94,7 +96,7 @@ describe("frame listen", () => {
       ),
     );
 
-    server.send("WebhookListenChannel", {}, {
+    server.send("Cli::WebhookListenChannel", {}, {
       type: "session_started",
       session_secret: "whsec_cli_test123",
     });
@@ -133,7 +135,7 @@ describe("frame listen", () => {
     );
 
     // Send session secret first
-    server.send("WebhookListenChannel", {}, {
+    server.send("Cli::WebhookListenChannel", {}, {
       type: "session_started",
       session_secret: "whsec_cli_secret_abc",
     });
@@ -145,7 +147,7 @@ describe("frame listen", () => {
     );
 
     // Send an event
-    server.send("WebhookListenChannel", {}, {
+    server.send("Cli::WebhookListenChannel", {}, {
       type: "event",
       event_type: "transfer.completed",
       event_id: "evt_001",
@@ -210,7 +212,7 @@ describe("frame listen", () => {
       ),
     );
 
-    server.send("WebhookListenChannel", {}, {
+    server.send("Cli::WebhookListenChannel", {}, {
       type: "session_started",
       session_secret: "whsec_cli_s",
     });
@@ -219,7 +221,7 @@ describe("frame listen", () => {
       stdoutSpy.mock.calls.some((c) => String(c[0]).includes("whsec_cli_s")),
     );
 
-    server.send("WebhookListenChannel", {}, {
+    server.send("Cli::WebhookListenChannel", {}, {
       type: "event",
       event_type: "refund.created",
       event_id: "evt_002",
@@ -292,7 +294,7 @@ describe("frame listen", () => {
     expect(identifier["events"]).toEqual(["transfer.completed"]);
 
     // Server sends session_started so we have a session secret
-    server.send("WebhookListenChannel", { events: ["transfer.completed"] }, {
+    server.send("Cli::WebhookListenChannel", { events: ["transfer.completed"] }, {
       type: "session_started",
       session_secret: "whsec_cli_filter_test",
     });
@@ -304,7 +306,7 @@ describe("frame listen", () => {
     );
 
     // Send a non-matching event — should NOT be forwarded
-    server.send("WebhookListenChannel", { events: ["transfer.completed"] }, {
+    server.send("Cli::WebhookListenChannel", { events: ["transfer.completed"] }, {
       type: "event",
       event_type: "refund.created",
       event_id: "evt_skip",
@@ -312,7 +314,7 @@ describe("frame listen", () => {
     });
 
     // Send matching event — should be forwarded
-    server.send("WebhookListenChannel", { events: ["transfer.completed"] }, {
+    server.send("Cli::WebhookListenChannel", { events: ["transfer.completed"] }, {
       type: "event",
       event_type: "transfer.completed",
       event_id: "evt_match",

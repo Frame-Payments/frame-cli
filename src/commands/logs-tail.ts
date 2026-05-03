@@ -37,9 +37,15 @@ export async function run(opts: LogsTailOptions, signal?: AbortSignal): Promise<
     { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
     async () => {
     const wsUrl = opts.wsUrl ?? deriveCableUrl(resolveBaseUrl(cred));
-    const client = createCableClient(wsUrl);
+    // Authentication is by `Authorization: Bearer <apiKey>` on the WS upgrade;
+    // see `Cli::ApplicationCable::Connection` (Rails) and ADR-0008.
+    const client = createCableClient(wsUrl, { apiKey: cred.apiKey });
 
-    const sub = client.subscribe("LogsChannel");
+    // The Rails channel class is namespaced (`Cli::LogsChannel`); Action
+    // Cable looks up the constant from this exact string. Bare `LogsChannel`
+    // logs `Subscription class not found: "LogsChannel"` server-side and
+    // silently drops the subscribe — connection stays open, but no data flows.
+    const sub = client.subscribe("Cli::LogsChannel");
 
     sub.on("*", (data) => {
       const entry = data as LogEntry;

@@ -51,9 +51,44 @@ export interface CableClientOptions {
    * replay on reconnect.  Default: 5 minutes.
    */
   replayWindowMs?: number;
+  /**
+   * API key sent as `Authorization: Bearer <apiKey>` on the WS upgrade
+   * handshake. The Rails-side `Cli::ApplicationCable::Connection` reads this
+   * header to authenticate the connection (see ADR-0008). Without it the
+   * server accepts the TCP/WebSocket upgrade and immediately rejects the
+   * cable connection, producing an "open then immediately close" loop.
+   *
+   * Re-supplied automatically on every reconnect attempt, since it lives in
+   * closure scope alongside the WS factory.
+   *
+   * Browser clients can't set request headers on WebSocket; if/when a browser
+   * SDK shares this connection class, the server will need a query-param
+   * fallback. Today the CLI is Node-only, so a header is the right choice.
+   */
+  apiKey?: string;
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Convert a `ws://` / `wss://` URL into the matching HTTP(S) origin, suitable
+ * for use as an `Origin` request header on the WebSocket upgrade. Returns
+ * an empty string for unparseable input — callers should treat that as
+ * "don't send Origin".
+ *
+ *   wss://api.framepayments.com/cable          → https://api.framepayments.com
+ *   ws://localhost:3000/cable                  → http://localhost:3000
+ */
+function deriveHttpOrigin(wsUrl: string): string {
+  try {
+    const u = new URL(wsUrl);
+    const httpScheme = u.protocol === "wss:" ? "https:" : "http:";
+    return `${httpScheme}//${u.host}`;
+  } catch {
+    return "";
+  }
+}
+
 
 interface SubscriptionState {
   channelName: string;
@@ -83,6 +118,7 @@ export function createCableClient(
     factor = 2,
     maxDelay = 30_000,
     replayWindowMs = 5 * 60 * 1_000,
+    apiKey,
   } = options;
 
   const subscriptions = new Map<string, SubscriptionState>();
@@ -137,7 +173,12 @@ export function createCableClient(
     const type = msg["type"] as string | undefined;
 
     if (type === "ping") {
-      rawSend({ type: "pong", message: msg["message"] });
+      // Action Cable's wire protocol (`actioncable-v1-json`) defines a
+      // server→client `ping` for liveness, and *no* corresponding `pong`.
+      // Replying with `{type: "pong"}` causes Rails to log
+      // `Received unrecognized command in {"type" => "pong", ...}` every
+      // 3 seconds. Just drop the ping; if we ever need client-side liveness
+      // tracking we'd update a `lastPingAt` timestamp here.
       return;
     }
 
@@ -171,7 +212,26 @@ export function createCableClient(
   function doConnect(): void {
     if (stopped) return;
 
-    ws = new WebSocket(url, ["actioncable-v1-json"]);
+    // The third arg to `ws.WebSocket` is `ClientOptions`, which accepts a
+    // `headers` map merged into the upgrade request. This is the only path
+    // available for sending headers on the WS handshake from Node — the
+    // browser WebSocket constructor has no equivalent.
+    //
+    // We send two headers:
+    //   - `Authorization: Bearer <apiKey>` — read by
+    //     `Cli::ApplicationCable::Connection` to authenticate the merchant.
+    //   - `Origin: <https-origin-of-ws-url>` — required by Action Cable's
+    //     `allow_same_origin_as_host` forgery protection. The Node `ws`
+    //     client omits Origin by default, which Rails rejects with
+    //     "Request origin not allowed: " (empty). Setting it to the same
+    //     origin as the WS URL passes the same-origin-as-host check without
+    //     weakening server-side CSRF protection.
+    const headers: Record<string, string> = {};
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const origin = deriveHttpOrigin(url);
+    if (origin) headers.Origin = origin;
+    const wsOptions = Object.keys(headers).length > 0 ? { headers } : undefined;
+    ws = new WebSocket(url, ["actioncable-v1-json"], wsOptions);
 
     ws.on("open", () => {
       reconnectAttempts = 0;
