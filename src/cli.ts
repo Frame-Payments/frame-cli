@@ -24,7 +24,18 @@ const program = new Command();
 program
   .name("frame")
   .description("Frame CLI — sandbox developer tooling for the Frame API")
-  .version(pkg.version);
+  .version(pkg.version)
+  .addHelpText(
+    "after",
+    `
+Getting started:
+  frame login        Authenticate with your sandbox API key
+  frame whoami       Show the currently authenticated merchant
+
+More information:
+  https://github.com/framepayments/frame-cli
+`,
+  );
 
 // ---------------------------------------------------------------------------
 // Subcommand registration — lazy via dynamic import().
@@ -54,6 +65,13 @@ program
 program
   .command("login")
   .description("Authenticate with your Frame sandbox API key")
+  .addHelpText(
+    "after",
+    `
+Examples:
+  frame login
+`,
+  )
   .action(async () => {
     const { run } = await import("./commands/login.js");
     await run();
@@ -62,6 +80,13 @@ program
 program
   .command("logout")
   .description("Remove stored credentials from the OS keychain")
+  .addHelpText(
+    "after",
+    `
+Examples:
+  frame logout
+`,
+  )
   .action(async () => {
     const { run } = await import("./commands/logout.js");
     await run();
@@ -70,6 +95,13 @@ program
 program
   .command("whoami")
   .description("Show the currently authenticated merchant")
+  .addHelpText(
+    "after",
+    `
+Examples:
+  frame whoami
+`,
+  )
   .action(async () => {
     const { run } = await import("./commands/whoami.js");
     await run();
@@ -87,6 +119,16 @@ const logs = program.command("logs").description("Log streaming commands");
 logs
   .command("tail")
   .description("Stream real-time sandbox API request logs")
+  .addHelpText(
+    "after",
+    `
+Examples:
+  frame logs tail
+  frame logs tail --filter-status 4xx,5xx
+  frame logs tail --filter-method POST --filter-path '/transfers/*'
+  frame logs tail --json
+`,
+  )
   .option(
     "--filter-status <statuses>",
     "Filter by status class or exact code, comma-separated (e.g. 4xx,5xx or 200)",
@@ -119,6 +161,15 @@ logs
 program
   .command("listen")
   .description("Forward sandbox webhook events to a local URL")
+  .addHelpText(
+    "after",
+    `
+Examples:
+  frame listen --forward-to http://localhost:3000/webhooks
+  frame listen --forward-to http://localhost:3000/webhooks --events transfer.completed,refund.created
+  frame listen --forward-to http://localhost:3000/webhooks --skip-endpoints
+`,
+  )
   .option("--forward-to <url>", "Local URL to POST each event to")
   .option(
     "--events <codes>",
@@ -135,9 +186,31 @@ program
     });
   });
 
+// Build trigger help text from SUPPORTED_EVENTS and DEPRECATED_EVENTS at import time
+// so there is a single source of truth — no risk of the help drifting from the code.
+// Import from the lightweight constants module (not trigger.ts) to avoid eagerly
+// loading keyring → keytar on every CLI invocation.
+import { SUPPORTED_EVENTS, DEPRECATED_EVENTS } from "./commands/trigger-events.js";
+
+const triggerHelpText = [
+  "",
+  "Supported events:",
+  ...SUPPORTED_EVENTS.map((e) => `  ${e}`),
+  "",
+  "Deprecated event codes (and their canonical replacements):",
+  ...Object.entries(DEPRECATED_EVENTS).map(([dep, hint]) => `  ${dep}  →  ${hint}`),
+  "",
+  "Examples:",
+  "  frame trigger transfer.completed",
+  "  frame trigger account.created",
+  "  frame trigger invoice.paid",
+  "",
+].join("\n");
+
 program
   .command("trigger <event_code>")
   .description("Trigger a sandbox event using bundled fixtures")
+  .addHelpText("after", triggerHelpText)
   .action(async (eventCode: string) => {
     const { run } = await import("./commands/trigger.js");
     await run(eventCode);
@@ -151,6 +224,13 @@ const eventsCmd = program
 eventsCmd
   .command("resend <evt_id>")
   .description("Re-deliver a previously emitted event verbatim")
+  .addHelpText(
+    "after",
+    `
+Examples:
+  frame events resend evt_abc123
+`,
+  )
   .action(async (evtId: string) => {
     const { run } = await import("./commands/events-resend.js");
     await run({ eventId: evtId });
@@ -160,6 +240,29 @@ eventsCmd
 program
   .command("open [page]")
   .description("Open a dashboard page in the default browser")
+  .addHelpText(
+    "after",
+    `
+Valid [page] values (examples):
+  (none)                     Dashboard home
+  transfers                  Transfers list
+  transfers/<transfer_id>    Individual transfer
+  refunds                    Refunds list
+  refunds/<refund_id>        Individual refund
+  accounts                   Accounts list
+  accounts/<account_id>      Individual account
+  invoices                   Invoices list
+  events                     Events list
+  logs                       API request logs
+  settings                   Sandbox settings
+
+Examples:
+  frame open
+  frame open transfers
+  frame open accounts/acct_abc123
+  frame open logs
+`,
+  )
   .action(async (page?: string) => {
     const { run } = await import("./commands/open.js");
     await run(page !== undefined ? { page } : {});

@@ -26,43 +26,11 @@ import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createApiClient, DEFAULT_BASE_URL, type ApiClient } from "../auth/api-client.js";
 
-// ---------------------------------------------------------------------------
-// Canonical 16-event list — the public contract for v1.
-// ---------------------------------------------------------------------------
-
-export const SUPPORTED_EVENTS: readonly string[] = [
-  "account.created",
-  "account.updated",
-  "account.restricted",
-  "account.unrestricted",
-  "capability.requested",
-  "capability.approved",
-  "capability.denied",
-  "capability.disabled",
-  "transfer.created",
-  "transfer.completed",
-  "transfer.cancelled",
-  "transfer.updated",
-  "refund.created",
-  "refund.completed",
-  "invoice.created",
-  "invoice.paid",
-];
-
-// ---------------------------------------------------------------------------
-// Deprecated event codes → canonical equivalent hint.
-// ---------------------------------------------------------------------------
-
-export const DEPRECATED_EVENTS: Readonly<Record<string, string>> = {
-  "customer.created": "frame accounts create",
-  "customer.updated": "frame accounts update",
-  "customer.deleted": "frame accounts update",
-  "charge_intent.created": "frame transfers create",
-  "charge_intent.completed": "frame trigger transfer.completed",
-  "charge_intent.cancelled": "frame trigger transfer.cancelled",
-  "payout.created": "frame transfers create",
-  "charge.created": "frame transfers create",
-};
+// Import and re-export canonical event lists from the lightweight constants
+// module so importers of trigger.ts see a single public API surface, while
+// cli.ts can import just trigger-events.ts without pulling in keyring/keytar.
+import { SUPPORTED_EVENTS, DEPRECATED_EVENTS } from "./trigger-events.js";
+export { SUPPORTED_EVENTS, DEPRECATED_EVENTS };
 
 // ---------------------------------------------------------------------------
 // Fixture types
