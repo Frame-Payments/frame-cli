@@ -90,6 +90,13 @@ interface Fixture {
 }
 
 // ---------------------------------------------------------------------------
+// Internal types
+// ---------------------------------------------------------------------------
+
+/** Shape returned by every resource-creation endpoint we call. */
+type ApiIdResponse = { id?: string };
+
+// ---------------------------------------------------------------------------
 // Interpolation helpers
 // ---------------------------------------------------------------------------
 
@@ -138,18 +145,18 @@ async function executeStep(
   const body =
     step.body !== undefined
       ? (interpolateValue(step.body, ctx) as Record<string, unknown>)
-      : undefined;
+      : {};
 
-  let result: { id?: string };
+  let result: ApiIdResponse;
 
   if (step.method === "POST") {
-    result = await client.post<{ id?: string }>(path, body ?? {});
+    result = await client.post<ApiIdResponse>(path, body);
   } else if (step.method === "PATCH") {
-    result = await client.patch<{ id?: string }>(path, body ?? {});
+    result = await client.patch<ApiIdResponse>(path, body);
   } else if (step.method === "DELETE") {
-    result = await client.delete<{ id?: string }>(path);
+    result = await client.delete<ApiIdResponse>(path);
   } else {
-    result = await client.get<{ id?: string }>(path);
+    result = await client.get<ApiIdResponse>(path);
   }
 
   const resourceId = result.id ?? "(no id)";
