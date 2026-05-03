@@ -7,16 +7,10 @@
  */
 
 import { createInterface } from "readline/promises";
-import { createApiClient, DEFAULT_BASE_URL } from "../auth/api-client.js";
+import { createApiClient, DEFAULT_BASE_URL, type MeResponse } from "../auth/api-client.js";
 import { set } from "../auth/keyring.js";
 
-interface MeResponse {
-  id: string;
-  name: string;
-}
-
 export async function run(): Promise<void> {
-  // Prompt for key with no echo (output set to null suppresses echo).
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,

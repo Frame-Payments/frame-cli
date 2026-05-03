@@ -5,12 +5,7 @@
 
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
-import { createApiClient, DEFAULT_BASE_URL } from "../auth/api-client.js";
-
-interface MeResponse {
-  id: string;
-  name: string;
-}
+import { createApiClient, DEFAULT_BASE_URL, type MeResponse } from "../auth/api-client.js";
 
 export async function run(): Promise<void> {
   const cred = await get();

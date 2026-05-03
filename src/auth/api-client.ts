@@ -9,6 +9,16 @@ export const API_VERSION = "2025-01-01";
 export const DEFAULT_BASE_URL = "https://api.frame.dev";
 
 // ---------------------------------------------------------------------------
+// Shared response types
+// ---------------------------------------------------------------------------
+
+/** Shape returned by GET /me. */
+export interface MeResponse {
+  id: string;
+  name: string;
+}
+
+// ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
 
@@ -36,6 +46,29 @@ export interface ApiClientOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the human-readable message from a Frame API error body.
+ * Returns null if the body doesn't follow the `{ error: { message } }` shape.
+ */
+function serverErrorMessage(body: unknown): string | null {
+  if (
+    body !== null &&
+    typeof body === "object" &&
+    "error" in body &&
+    body.error !== null &&
+    typeof body.error === "object" &&
+    "message" in body.error &&
+    typeof body.error.message === "string"
+  ) {
+    return body.error.message;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -55,19 +88,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     const body = (await resp.json()) as unknown;
 
     if (!resp.ok) {
-      // Try to surface the server's error message.
-      let msg = `HTTP ${resp.status}`;
-      if (
-        body !== null &&
-        typeof body === "object" &&
-        "error" in body &&
-        body.error !== null &&
-        typeof body.error === "object" &&
-        "message" in body.error &&
-        typeof body.error.message === "string"
-      ) {
-        msg = body.error.message;
-      }
+      const msg = serverErrorMessage(body) ?? `HTTP ${resp.status}`;
       throw new ApiError(resp.status, msg);
     }
 
