@@ -85,6 +85,17 @@ export interface ApiClientOptions {
  * Extract the human-readable message from a Frame API error body.
  * Returns null if the body doesn't follow the `{ error: { message } }` shape.
  */
+/**
+ * Truncate an opaque response body to a bounded snippet safe to embed in an
+ * error message. Collapses whitespace so an HTML error page doesn't blow up
+ * the user's terminal with hundreds of newlines.
+ */
+function truncateForError(text: string, max = 200): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= max) return collapsed;
+  return `${collapsed.slice(0, max)}… (${collapsed.length} chars total)`;
+}
+
 function serverErrorMessage(body: unknown): string | null {
   if (
     body !== null &&
@@ -119,7 +130,16 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
       ...(reqBody !== undefined ? { body: JSON.stringify(reqBody) } : {}),
     });
 
-    const responseBody = (await resp.json()) as unknown;
+    const rawText = await resp.text();
+    let responseBody: unknown;
+    try {
+      responseBody = rawText.length === 0 ? undefined : JSON.parse(rawText);
+    } catch {
+      throw new ApiError(
+        resp.status,
+        `HTTP ${resp.status} from ${url}: response was not valid JSON. Body: ${truncateForError(rawText)}`,
+      );
+    }
 
     if (!resp.ok) {
       const msg = serverErrorMessage(responseBody) ?? `HTTP ${resp.status}`;

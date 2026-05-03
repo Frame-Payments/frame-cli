@@ -19,7 +19,30 @@ function makeResponse(
   return {
     ok,
     status,
+    headers: new Headers({ "content-type": "application/json" }),
+    text: () => Promise.resolve(JSON.stringify(body)),
     json: () => Promise.resolve(body),
+  } as unknown as Response;
+}
+
+/**
+ * Mimics a real fetch Response whose body is not JSON (e.g. an HTML error
+ * page from a misrouted request). `.json()` rejects the same way undici does.
+ */
+function makeNonJsonResponse(
+  body: string,
+  status: number,
+  contentType = "text/html; charset=utf-8",
+): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers({ "content-type": contentType }),
+    text: () => Promise.resolve(body),
+    json: () =>
+      Promise.reject(
+        new SyntaxError(`Unexpected token '<', "${body.slice(0, 10)}"... is not valid JSON`),
+      ),
   } as unknown as Response;
 }
 
@@ -131,5 +154,127 @@ describe("ApiError", () => {
       baseUrl: "https://api.frame.dev",
     });
     await expect(client.get("/me")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Non-JSON responses (e.g. misconfigured base URL hits a Rails HTML error page)
+// ---------------------------------------------------------------------------
+
+describe("non-JSON responses", () => {
+  it("throws ApiError (not SyntaxError) when server returns an HTML error page", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeNonJsonResponse(
+        "<!DOCTYPE html><html><body>Routing Error</body></html>",
+        404,
+      ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    await expect(client.get("/me")).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("includes the request URL in the ApiError message", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeNonJsonResponse(
+        "<!DOCTYPE html><html><body>Routing Error</body></html>",
+        404,
+      ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    let caught: ApiError | undefined;
+    try {
+      await client.get("/me");
+    } catch (e) {
+      caught = e as ApiError;
+    }
+    expect(caught?.message).toContain("https://api.frame.dev/me");
+  });
+
+  it("includes a snippet of the response body in the ApiError message", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeNonJsonResponse(
+        "<!DOCTYPE html><html><body>Routing Error: action_controller</body></html>",
+        404,
+      ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    let caught: ApiError | undefined;
+    try {
+      await client.get("/me");
+    } catch (e) {
+      caught = e as ApiError;
+    }
+    expect(caught?.message).toContain("Routing Error");
+  });
+
+  it("truncates large response bodies in the ApiError message", async () => {
+    const huge = "x".repeat(5000);
+    fetchMock.mockResolvedValueOnce(makeNonJsonResponse(huge, 500));
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    let caught: ApiError | undefined;
+    try {
+      await client.get("/me");
+    } catch (e) {
+      caught = e as ApiError;
+    }
+    // Whole message stays bounded — body snippet must not exceed ~200 chars.
+    expect(caught?.message.length).toBeLessThan(400);
+  });
+
+  it("throws ApiError on a 2xx response with a non-JSON body (e.g. proxy/captive portal)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeNonJsonResponse(
+        "<html><body>Please sign in to your network</body></html>",
+        200,
+      ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    await expect(client.get("/me")).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("returns undefined for a 2xx response with an empty body (204-style)", async () => {
+    fetchMock.mockResolvedValueOnce(makeNonJsonResponse("", 204));
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    const result = await client.delete("/widgets/abc");
+    expect(result).toBeUndefined();
+  });
+
+  it("surfaces the HTTP status on the ApiError", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeNonJsonResponse(
+        "<!DOCTYPE html><html><body>Routing Error</body></html>",
+        404,
+      ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    let caught: ApiError | undefined;
+    try {
+      await client.get("/me");
+    } catch (e) {
+      caught = e as ApiError;
+    }
+    expect(caught?.status).toBe(404);
+    expect(caught?.message).toContain("404");
   });
 });
