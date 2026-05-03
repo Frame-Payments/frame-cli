@@ -7,11 +7,8 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const readme = readFileSync(join(__dirname, "..", "README.md"), "utf8");
+const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 
 describe("README.md", () => {
   it("mentions the package name and sandbox-only status in the header", () => {
@@ -86,7 +83,7 @@ describe("README.md", () => {
 
   describe("Sandbox-only notice", () => {
     it("explicitly states live keys are rejected", () => {
-      expect(readme).toMatch(/[Ll]ive.*key.*rejected|key.*rejected.*live/is);
+      expect(readme).toMatch(/live.*key.*rejected|key.*rejected.*live/i);
     });
   });
 
