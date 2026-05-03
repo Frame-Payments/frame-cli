@@ -134,4 +134,12 @@ program
     });
   });
 
+program
+  .command("trigger <event_code>")
+  .description("Trigger a sandbox event using bundled fixtures")
+  .action(async (eventCode: string) => {
+    const { run } = await import("./commands/trigger.js");
+    await run(eventCode);
+  });
+
 await program.parseAsync(process.argv);

@@ -1,0 +1,18 @@
+event: invoice.paid
+steps:
+  - method: POST
+    path: /api/v1/accounts
+    body:
+      name: Test Account
+    capture: account_id
+  - method: POST
+    path: /api/v1/invoices
+    body:
+      account_id: "{account_id}"
+      amount: 2000
+      currency: usd
+    capture: invoice_id
+  - method: force_transition
+    resource_type: invoice
+    resource_id: "{invoice_id}"
+    target_state: paid

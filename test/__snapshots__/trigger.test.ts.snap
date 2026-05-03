@@ -1,0 +1,126 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`frame trigger — parameterised API call sequences > trigger account.created makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger account.restricted makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger account.unrestricted makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/test/force_transition",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger account.updated makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "PATCH /api/v1/accounts/mock_id_1",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger capability.approved makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/capabilities",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger capability.denied makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/capabilities",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger capability.disabled makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/capabilities",
+  "POST /api/v1/test/force_transition",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger capability.requested makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/capabilities",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger invoice.created makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/invoices",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger invoice.paid makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/invoices",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger refund.completed makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/transfers",
+  "POST /api/v1/test/force_transition",
+  "POST /api/v1/refunds",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger refund.created makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/transfers",
+  "POST /api/v1/test/force_transition",
+  "POST /api/v1/refunds",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger transfer.cancelled makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/transfers",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger transfer.completed makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/transfers",
+  "POST /api/v1/test/force_transition",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger transfer.created makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/transfers",
+]
+`;
+
+exports[`frame trigger — parameterised API call sequences > trigger transfer.updated makes the expected API call sequence 1`] = `
+[
+  "POST /api/v1/accounts",
+  "POST /api/v1/transfers",
+  "PATCH /api/v1/transfers/mock_id_2",
+]
+`;

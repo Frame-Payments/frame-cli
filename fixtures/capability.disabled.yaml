@@ -1,0 +1,21 @@
+event: capability.disabled
+steps:
+  - method: POST
+    path: /api/v1/accounts
+    body:
+      name: Test Account
+    capture: account_id
+  - method: POST
+    path: /api/v1/capabilities
+    body:
+      account_id: "{account_id}"
+      type: card_receive
+    capture: capability_id
+  - method: force_transition
+    resource_type: capability
+    resource_id: "{capability_id}"
+    target_state: approved
+  - method: force_transition
+    resource_type: capability
+    resource_id: "{capability_id}"
+    target_state: disabled
