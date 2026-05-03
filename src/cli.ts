@@ -13,9 +13,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
-  readFileSync(join(here, "..", "package.json"), "utf8"),
+  readFileSync(join(__dirname, "..", "package.json"), "utf8"),
 ) as { version: string };
 
 const program = new Command();
@@ -47,9 +47,6 @@ program
   .description("Scaffold placeholder — demonstrates the lazy-import pathway")
   .action(async () => {
     const { run } = await import("./commands/placeholder.js");
-    // In real commands the BannerContext comes from the stored credential /
-    // resolved merchant. The placeholder uses a static demo value so the
-    // binary works before auth is wired up.
     await run({ merchant: "acct_demo", mode: "sandbox" });
   });
 

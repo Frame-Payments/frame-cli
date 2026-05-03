@@ -11,9 +11,6 @@ export interface BannerContext {
   mode: "sandbox" | "live";
 }
 
-/**
- * Return the formatted banner string (does not print).
- */
 export function formatBanner(ctx: BannerContext): string {
   return [
     `┌─ Frame CLI ─────────────────────────────────────`,

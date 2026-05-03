@@ -6,8 +6,7 @@
  * Real commands (login, listen, trigger …) will follow the same shape.
  */
 
-import { runWithBanner } from "../fmt/banner.js";
-import type { BannerContext } from "../fmt/banner.js";
+import { runWithBanner, type BannerContext } from "../fmt/banner.js";
 
 export async function run(ctx: BannerContext): Promise<void> {
   await runWithBanner(ctx, async () => {
