@@ -4,6 +4,10 @@ The Frame CLI is governed by ADRs that live in the Rails repo (`frame/docs/adr/`
 
 This file is a pointer index. CLI-internal ADRs — decisions that affect only the CLI codebase — will be added to this directory as `0001-*.md`, `0002-*.md`, etc. as they're made.
 
+## CLI-internal decisions
+
+- **[ADR-0001](./0001-bundled-agent-skill.md)** — The Frame CLI bundles an agentskills.io-compliant `skills/frame-cli/SKILL.md` inside the npm tarball, installable via `npx skills add Frame-Payments/frame-cli`. The skill's `description` and documented surface are public contract.
+
 ## Inherited decisions (live in `frame/docs/adr/`)
 
 - **[ADR-0006](../../../frame/docs/adr/0006-cli-canonical-public-surface.md)** — The Frame CLI exposes only the canonical public surface (Transfer, Account, Capability, Refund, Webhook, Product, Invoice). Deprecated public terms (Customer, ChargeIntent, Payout) do not get CLI commands.
