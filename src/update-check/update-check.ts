@@ -121,7 +121,7 @@ export async function checkForUpdates(opts: UpdateCheckOptions): Promise<void> {
 
   if (!isFresh) {
     try {
-      const resp = await fetch(`${baseUrl}/api/v1/cli/latest_version`);
+      const resp = await fetch(`${baseUrl}/cli/latest_version`);
       if (resp.ok) {
         const data = (await resp.json()) as VersionApiResponse;
         // Preserve nudgeShownAt so we don't reset the 24h nudge window.

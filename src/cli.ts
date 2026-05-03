@@ -68,15 +68,15 @@ program
   .description("Authenticate with your Frame sandbox API key")
   .option(
     "--base-url <url>",
-    "Override the API base URL (e.g. http://localhost:3000 for local dev). Persisted with the credential. Falls back to $FRAME_API_BASE_URL, then the production default.",
+    "Override the API base URL, INCLUDING the /v1 path prefix (e.g. http://localhost:3000/v1 for local dev). Persisted with the credential. Falls back to $FRAME_API_BASE_URL, then the production default.",
   )
   .addHelpText(
     "after",
     `
 Examples:
   frame login
-  frame login --base-url http://localhost:3000
-  FRAME_API_BASE_URL=https://api.staging.frame.dev frame login
+  frame login --base-url http://localhost:3000/v1
+  FRAME_API_BASE_URL=https://api.staging.framepayments.com/v1 frame login
 `,
   )
   .action(async (opts: { baseUrl?: string }) => {

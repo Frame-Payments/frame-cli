@@ -5,7 +5,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createApiClient, ApiError, type ApiClient } from "../api-client.js";
+import {
+  createApiClient,
+  ApiError,
+  HARDCODED_DEFAULT_BASE_URL,
+  resolveBaseUrl,
+  type ApiClient,
+} from "../api-client.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -160,6 +166,39 @@ describe("ApiError", () => {
 // ---------------------------------------------------------------------------
 // Non-JSON responses (e.g. misconfigured base URL hits a Rails HTML error page)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Default base URL convention
+// ---------------------------------------------------------------------------
+
+describe("default base URL", () => {
+  it("hits /v1/<path> when no baseUrl is provided", async () => {
+    fetchMock.mockResolvedValueOnce(makeResponse({ id: "acct_1", name: "Test" }));
+    const client = createApiClient({ apiKey: "sk_test_xyz" });
+    await client.get("/me");
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.framepayments.com/v1/me");
+  });
+
+  it("resolveBaseUrl returns the /v1-suffixed default for null credentials", () => {
+    expect(resolveBaseUrl(null)).toBe("https://api.framepayments.com/v1");
+  });
+
+  it("resolveBaseUrl returns a stored credential's baseUrl unchanged (no magic /v1 appending)", () => {
+    expect(resolveBaseUrl({ baseUrl: "http://localhost:3000/v1" })).toBe(
+      "http://localhost:3000/v1",
+    );
+    // If the user stored a baseUrl without /v1, we hand it back as-is. The
+    // contract is "caller is responsible for /v1" — we don't second-guess.
+    expect(resolveBaseUrl({ baseUrl: "http://localhost:3000" })).toBe(
+      "http://localhost:3000",
+    );
+  });
+
+  it("HARDCODED_DEFAULT_BASE_URL ends in /v1", () => {
+    expect(HARDCODED_DEFAULT_BASE_URL).toBe("https://api.framepayments.com/v1");
+  });
+});
 
 describe("non-JSON responses", () => {
   it("throws ApiError (not SyntaxError) when server returns an HTML error page", async () => {

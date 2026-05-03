@@ -7,8 +7,15 @@
 
 export const API_VERSION = "2025-01-01";
 
-/** Hardcoded fallback when no env var or stored credential overrides it. */
-export const HARDCODED_DEFAULT_BASE_URL = "https://api.framepayments.com";
+/**
+ * Hardcoded fallback when no env var or stored credential overrides it.
+ *
+ * NOTE: includes the `/v1` API version prefix. Callers (and stored
+ * credentials, and `--base-url` overrides) MUST follow the same convention:
+ * pass the full base including `/v1`. We deliberately do not auto-append it,
+ * to keep base-URL semantics dumb and predictable.
+ */
+export const HARDCODED_DEFAULT_BASE_URL = "https://api.framepayments.com/v1";
 
 /**
  * Resolved default base URL for the Frame API.

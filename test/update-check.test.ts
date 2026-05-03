@@ -102,7 +102,7 @@ function defaultOpts(overrides: Partial<Parameters<typeof checkForUpdates>[0]> =
     cacheFile: CACHE_FILE,
     now: NOW,
     exit: exitMock as unknown as (code: number) => never,
-    baseUrl: "https://api.frame.dev",
+    baseUrl: "https://api.frame.dev/v1",
     ...overrides,
   };
 }
@@ -137,7 +137,7 @@ describe("checkForUpdates — cache honoured within 24h", () => {
 });
 
 describe("checkForUpdates — cache refresh after 24h", () => {
-  it("calls GET /api/v1/cli/latest_version when cache is stale (>24h)", async () => {
+  it("calls GET <baseUrl>/cli/latest_version when cache is stale (>24h)", async () => {
     const cachedAt = hoursAgo(25, NOW); // 25 hours ago — stale
     mockReadFileSync.mockReturnValueOnce(makeCacheJson({ cachedAt }));
     fetchMock.mockResolvedValueOnce(
@@ -150,7 +150,7 @@ describe("checkForUpdates — cache refresh after 24h", () => {
     await checkForUpdates(defaultOpts());
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.frame.dev/api/v1/cli/latest_version",
+      "https://api.frame.dev/v1/cli/latest_version",
     );
   });
 
