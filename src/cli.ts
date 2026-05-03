@@ -75,9 +75,7 @@ program
     await run();
   });
 
-// Run the update check before every subcommand.
-// Uses Commander's preAction hook so it fires regardless of which command
-// is invoked. Silent on network errors; hard-stops on min_cli_version violation.
+// Runs before every subcommand. Silent on network errors; hard-stops on min_cli_version violation.
 program.hook("preAction", async () => {
   await checkForUpdates({ currentVersion: pkg.version });
 });

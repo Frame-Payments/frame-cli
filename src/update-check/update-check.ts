@@ -16,13 +16,13 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
+import { DEFAULT_BASE_URL } from "../auth/api-client.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BASE_URL = "https://api.frame.dev";
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours in ms
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,7 +84,7 @@ function compareVersions(a: string, b: string): number {
 
 function readCache(cacheFile: string): VersionCacheEntry | null {
   try {
-    const raw = readFileSync(cacheFile, "utf8") as string;
+    const raw = readFileSync(cacheFile, "utf8");
     return JSON.parse(raw) as VersionCacheEntry;
   } catch {
     return null;
@@ -115,22 +115,21 @@ export async function checkForUpdates(opts: UpdateCheckOptions): Promise<void> {
   let cache = readCache(cacheFile);
 
   // ── 2. Refresh the cache when stale or absent ────────────────────────────
-  const cachedAtMs = cache ? new Date(cache.cachedAt).getTime() : 0;
-  const isFresh = cache !== null && now.getTime() - cachedAtMs < CACHE_TTL_MS;
+  const isFresh =
+    cache !== null &&
+    now.getTime() - new Date(cache.cachedAt).getTime() < CACHE_TTL_MS;
 
   if (!isFresh) {
     try {
       const resp = await fetch(`${baseUrl}/api/v1/cli/latest_version`);
       if (resp.ok) {
         const data = (await resp.json()) as VersionApiResponse;
+        // Preserve nudgeShownAt so we don't reset the 24h nudge window.
         const refreshed: VersionCacheEntry = {
           latest_version: data.latest_version,
           min_cli_version: data.min_cli_version,
           cachedAt: now.toISOString(),
-          // Preserve the existing nudgeShownAt so we don't reset the 24h window.
-          ...(cache?.nudgeShownAt !== undefined
-            ? { nudgeShownAt: cache.nudgeShownAt }
-            : {}),
+          ...(cache?.nudgeShownAt !== undefined && { nudgeShownAt: cache.nudgeShownAt }),
         };
         writeCache(cacheFile, refreshed);
         cache = refreshed;
@@ -167,12 +166,7 @@ export async function checkForUpdates(opts: UpdateCheckOptions): Promise<void> {
         `v${cache.latest_version} is available, run \`brew upgrade frame\` to update\n`,
       );
       // Persist the nudge timestamp so we don't show it again for 24 h.
-      const updated: VersionCacheEntry = {
-        latest_version: cache.latest_version,
-        min_cli_version: cache.min_cli_version,
-        cachedAt: cache.cachedAt,
-        nudgeShownAt: now.toISOString(),
-      };
+      const updated: VersionCacheEntry = { ...cache, nudgeShownAt: now.toISOString() };
       writeCache(cacheFile, updated);
     }
   }
