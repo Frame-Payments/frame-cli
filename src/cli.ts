@@ -115,4 +115,23 @@ logs
     await run(runOpts);
   });
 
+program
+  .command("listen")
+  .description("Forward sandbox webhook events to a local URL")
+  .option("--forward-to <url>", "Local URL to POST each event to")
+  .option(
+    "--events <codes>",
+    "Comma-separated event codes to filter (e.g. transfer.completed,refund.created)",
+  )
+  .option("--skip-endpoints", "Suppress sibling sandbox endpoints for this session")
+  .action(async (opts: { forwardTo?: string; events?: string; skipEndpoints?: boolean }) => {
+    const { run } = await import("./commands/listen.js");
+    // Build options without passing undefined to satisfy exactOptionalPropertyTypes
+    await run({
+      ...(opts.forwardTo !== undefined && { forwardTo: opts.forwardTo }),
+      ...(opts.events !== undefined && { events: opts.events.split(",").map((e) => e.trim()) }),
+      ...(opts.skipEndpoints !== undefined && { skipEndpoints: opts.skipEndpoints }),
+    });
+  });
+
 await program.parseAsync(process.argv);
