@@ -38,8 +38,8 @@ export class ApiError extends Error {
 
 export interface ApiClient {
   get<T = unknown>(path: string): Promise<T>;
-  post<T = unknown>(path: string, body: unknown): Promise<T>;
-  patch<T = unknown>(path: string, body: unknown): Promise<T>;
+  post<T = unknown>(path: string, body?: unknown): Promise<T>;
+  patch<T = unknown>(path: string, body?: unknown): Promise<T>;
   delete<T = unknown>(path: string): Promise<T>;
 }
 
@@ -78,7 +78,7 @@ function serverErrorMessage(body: unknown): string | null {
 export function createApiClient(opts: ApiClientOptions): ApiClient {
   const base = opts.baseUrl ?? DEFAULT_BASE_URL;
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: string, path: string, reqBody?: unknown): Promise<T> {
     const url = `${base}${path}`;
     const resp = await fetch(url, {
       method,
@@ -87,7 +87,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
         "X-Frame-API-Version": API_VERSION,
         "Content-Type": "application/json",
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(reqBody !== undefined ? { body: JSON.stringify(reqBody) } : {}),
     });
 
     const responseBody = (await resp.json()) as unknown;
@@ -102,8 +102,8 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
 
   return {
     get: <T>(path: string) => request<T>("GET", path),
-    post: <T>(path: string, body: unknown) => request<T>("POST", path, body),
-    patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
+    post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
+    patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
     delete: <T>(path: string) => request<T>("DELETE", path),
   };
 }
