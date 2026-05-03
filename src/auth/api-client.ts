@@ -1,11 +1,14 @@
 /**
  * auth/api-client — single fetch wrapper for the Frame API.
  *
- * Injects `Authorization: Bearer <key>` and `X-Frame-API-Version` headers
- * on every request, and normalises non-2xx responses into an `ApiError`.
+ * Injects an `Authorization: Bearer <key>` header on every request and
+ * normalises non-2xx (and non-JSON) responses into an `ApiError`.
+ *
+ * NOTE: the Frame API does not currently support Stripe-style dated API
+ * versioning. When it does, an `X-Frame-API-Version: YYYY-MM-DD` header
+ * should be added here. Until then we deliberately send no version header
+ * rather than commit to a value the server doesn't honour.
  */
-
-export const API_VERSION = "2025-01-01";
 
 /**
  * Hardcoded fallback when no env var or stored credential overrides it.
@@ -131,7 +134,6 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
       method,
       headers: {
         Authorization: `Bearer ${opts.apiKey}`,
-        "X-Frame-API-Version": API_VERSION,
         "Content-Type": "application/json",
       },
       ...(reqBody !== undefined ? { body: JSON.stringify(reqBody) } : {}),

@@ -81,19 +81,6 @@ describe("createApiClient", () => {
     );
   });
 
-  it("injects X-Frame-API-Version header", async () => {
-    fetchMock.mockResolvedValueOnce(makeResponse({ id: "acct_1", name: "Test" }));
-    const client = createApiClient({
-      apiKey: "sk_test_xyz",
-      baseUrl: "https://api.frame.dev",
-    });
-    await client.get("/me");
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(
-      (init.headers as Record<string, string>)["X-Frame-API-Version"],
-    ).toBeDefined();
-  });
-
   it("prepends baseUrl to path", async () => {
     fetchMock.mockResolvedValueOnce(makeResponse({ id: "acct_1" }));
     const client = createApiClient({
