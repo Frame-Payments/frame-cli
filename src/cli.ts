@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { checkForUpdates } from "./update-check/update-check.js";
+import { SUPPORTED_EVENTS, DEPRECATED_EVENTS } from "./commands/trigger-events.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -185,12 +186,6 @@ Examples:
       ...(opts.skipEndpoints !== undefined && { skipEndpoints: opts.skipEndpoints }),
     });
   });
-
-// Build trigger help text from SUPPORTED_EVENTS and DEPRECATED_EVENTS at import time
-// so there is a single source of truth — no risk of the help drifting from the code.
-// Import from the lightweight constants module (not trigger.ts) to avoid eagerly
-// loading keyring → keytar on every CLI invocation.
-import { SUPPORTED_EVENTS, DEPRECATED_EVENTS } from "./commands/trigger-events.js";
 
 const triggerHelpText = [
   "",

@@ -1,28 +1,17 @@
 /**
  * Regression guard: every fixtures/*.yaml event field must match
- * SUPPORTED_EVENTS from src/commands/trigger.ts — and vice versa.
+ * SUPPORTED_EVENTS from src/commands/trigger-events.ts — and vice versa.
  *
  * Prevents the canonical event list from silently drifting out of sync
  * with the bundled YAML files.
  */
 
-import { describe, it, expect, vi } from "vitest";
-
-vi.mock("../src/auth/keyring.js", () => ({
-  get: vi.fn(),
-  set: vi.fn(),
-  clear: vi.fn(),
-}));
-
-vi.mock("../src/auth/api-client.js", () => ({
-  createApiClient: vi.fn(),
-  DEFAULT_BASE_URL: "https://api.frame.dev",
-}));
+import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { SUPPORTED_EVENTS } from "../src/commands/trigger.js";
+import { SUPPORTED_EVENTS } from "../src/commands/trigger-events.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "..", "fixtures");
