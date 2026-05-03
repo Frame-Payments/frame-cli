@@ -20,11 +20,8 @@ export interface OpenOptions {
   page?: string;
 }
 
-/** Returns the resolved dashboard URL for the given optional page path. */
 export function dashboardUrl(page?: string): string {
-  const base = DASHBOARD_BASE_URL;
-  if (!page) return base;
-  return `${base}/${page}`;
+  return page ? `${DASHBOARD_BASE_URL}/${page}` : DASHBOARD_BASE_URL;
 }
 
 function platformOpener(): string {
