@@ -7,13 +7,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock keytar before importing keyring so the module picks up the mock.
+//
+// IMPORTANT: the mock shape mirrors keytar's *real* CJS export shape
+// (`module.exports = { getPassword, setPassword, ... }`), exposed under
+// `default` for ESM default-import consumers. `keyring.ts` uses
+// `import keytar from "keytar"` — see the comment in that file for the
+// ESM-interop background.
 vi.mock("keytar", () => ({
-  getPassword: vi.fn(),
-  setPassword: vi.fn(),
-  deletePassword: vi.fn(),
+  default: {
+    getPassword: vi.fn(),
+    setPassword: vi.fn(),
+    deletePassword: vi.fn(),
+  },
 }));
 
-import * as keytar from "keytar";
+import keytar from "keytar";
 import { get, set, clear, type Credential } from "../keyring.js";
 
 const mockGet = vi.mocked(keytar.getPassword);

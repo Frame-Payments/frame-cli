@@ -3,9 +3,19 @@
  *
  * Stores a single Frame API credential (API key + merchant ID) in the
  * OS keychain under service "frame-cli" / account "api-key".
+ *
+ * IMPORTANT: keytar is a CommonJS native module. Use the **default import**
+ * (`import keytar from "keytar"`), not a namespace import (`import * as`).
+ * Under raw Node ESM — the loader the bundled CLI runs under — the namespace
+ * style does not promote every CJS export to a named ESM export, leaving
+ * `setPassword` / `deletePassword` undefined and producing
+ * `TypeError: keytar.setPassword is not a function` at runtime. The bug is
+ * masked by Vitest's transform pipeline, so unit tests that mock keytar do
+ * not catch it. See `src/auth/__tests__/keytar-binding.test.ts` (subprocess
+ * smoke test that mirrors this import style and runs under raw Node ESM).
  */
 
-import * as keytar from "keytar";
+import keytar from "keytar";
 
 export interface Credential {
   apiKey: string;
