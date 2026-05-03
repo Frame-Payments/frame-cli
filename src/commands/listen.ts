@@ -62,9 +62,8 @@ interface EventMessage {
  * https://api.frame.dev → wss://api.frame.dev/cable
  */
 function deriveCableUrl(apiBaseUrl: string): string {
-  return apiBaseUrl.replace(/^https?:\/\//, (m) =>
-    m === "https://" ? "wss://" : "ws://",
-  ) + "/cable";
+  const wsScheme = apiBaseUrl.startsWith("https://") ? "wss://" : "ws://";
+  return apiBaseUrl.replace(/^https?:\/\//, wsScheme) + "/cable";
 }
 
 /** Compute the X-Frame-Signature header value for a request body. */
@@ -92,13 +91,12 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
   const wsUrl = new URL(baseWsUrl);
   wsUrl.searchParams.set("api_key", cred.apiKey);
 
-  // Build channel params from flags
   const channelParams: Record<string, unknown> = {};
   if (opts.events && opts.events.length > 0) {
-    channelParams["events"] = opts.events;
+    channelParams.events = opts.events;
   }
   if (opts.skipEndpoints) {
-    channelParams["skip_endpoints"] = true;
+    channelParams.skip_endpoints = true;
   }
 
   await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {
@@ -108,8 +106,6 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
 
     const subscription = client
       .subscribe("WebhookListenChannel", channelParams)
-
-      // ── Channel-level welcome: carry the per-session HMAC secret ─────────
       .on("session_started", (raw) => {
         const msg = raw as SessionStartedMessage;
         sessionSecret = msg.session_secret;
@@ -117,8 +113,6 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
           `\n  ✓ Session started\n    Webhook secret: ${sessionSecret}\n    Paste this into your local .env as FRAME_WEBHOOK_SECRET.\n\n`,
         );
       })
-
-      // ── Incoming webhook event ────────────────────────────────────────────
       .on("event", (raw) => {
         void handleEvent(raw as EventMessage);
       });
@@ -152,7 +146,6 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
           });
           localStatus = resp.status;
         } catch (err) {
-          localStatus = 0;
           process.stderr.write(
             `  ✗ Forward failed: ${(err as Error).message}\n`,
           );
