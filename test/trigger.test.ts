@@ -16,6 +16,8 @@ vi.mock("../src/auth/keyring.js", () => ({
 vi.mock("../src/auth/api-client.js", () => ({
   createApiClient: vi.fn(),
   DEFAULT_BASE_URL: "https://api.frame.dev",
+  HARDCODED_DEFAULT_BASE_URL: "https://api.frame.dev",
+  resolveBaseUrl: () => "https://api.frame.dev",
 }));
 
 import * as keyring from "../src/auth/keyring.js";

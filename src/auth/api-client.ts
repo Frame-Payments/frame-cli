@@ -6,7 +6,36 @@
  */
 
 export const API_VERSION = "2025-01-01";
-export const DEFAULT_BASE_URL = "https://api.frame.dev";
+
+/** Hardcoded fallback when no env var or stored credential overrides it. */
+export const HARDCODED_DEFAULT_BASE_URL = "https://api.framepayments.com";
+
+/**
+ * Resolved default base URL for the Frame API.
+ *
+ * Resolution order:
+ *   1. `FRAME_API_BASE_URL` env var (one-off local/staging overrides)
+ *   2. `HARDCODED_DEFAULT_BASE_URL`
+ *
+ * Per-credential overrides (set via `frame login --base-url …`) are layered
+ * on top of this default by callers via `resolveBaseUrl(cred)`.
+ */
+export const DEFAULT_BASE_URL =
+  process.env.FRAME_API_BASE_URL ?? HARDCODED_DEFAULT_BASE_URL;
+
+/**
+ * Resolve the base URL for a given stored credential.
+ *
+ *   env var > stored credential > hardcoded default
+ *
+ * The env var wins so a developer can quickly point an existing login at a
+ * local/staging server without re-running `frame login`.
+ */
+export function resolveBaseUrl(cred: { baseUrl?: string } | null | undefined): string {
+  if (process.env.FRAME_API_BASE_URL) return process.env.FRAME_API_BASE_URL;
+  if (cred?.baseUrl) return cred.baseUrl;
+  return HARDCODED_DEFAULT_BASE_URL;
+}
 
 // ---------------------------------------------------------------------------
 // Shared response types

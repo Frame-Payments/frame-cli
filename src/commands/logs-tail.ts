@@ -1,6 +1,7 @@
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createCableClient } from "../transport/cable-client.js";
+import { resolveBaseUrl } from "../auth/api-client.js";
 import {
   formatLogLine,
   matchesFilters,
@@ -17,7 +18,14 @@ export interface LogsTailOptions extends LogFilters {
   wsUrl?: string;
 }
 
-const DEFAULT_WS_URL = "wss://api.frame.dev/cable";
+/**
+ * Derive the ActionCable WebSocket URL from an HTTP(S) API base URL.
+ * https://api.framepayments.com → wss://api.framepayments.com/cable
+ */
+function deriveCableUrl(apiBaseUrl: string): string {
+  const wsScheme = apiBaseUrl.startsWith("https://") ? "wss://" : "ws://";
+  return apiBaseUrl.replace(/^https?:\/\//, wsScheme) + "/cable";
+}
 
 // ─── Command entry-point ───────────────────────────────────────────────────────
 
@@ -34,7 +42,7 @@ export async function run(opts: LogsTailOptions, signal?: AbortSignal): Promise<
   }
 
   await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {
-    const wsUrl = opts.wsUrl ?? DEFAULT_WS_URL;
+    const wsUrl = opts.wsUrl ?? deriveCableUrl(resolveBaseUrl(cred));
     const client = createCableClient(wsUrl);
 
     const sub = client.subscribe("LogsChannel");

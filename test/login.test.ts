@@ -23,6 +23,8 @@ vi.mock("../src/auth/api-client.js", () => ({
     }
   },
   DEFAULT_BASE_URL: "https://api.frame.dev",
+  HARDCODED_DEFAULT_BASE_URL: "https://api.frame.dev",
+  resolveBaseUrl: () => "https://api.frame.dev",
 }));
 
 // Mock readline/promises so we can inject the API key without stdin

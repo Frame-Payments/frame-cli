@@ -19,7 +19,7 @@ import { createHmac } from "node:crypto";
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createCableClient } from "../transport/cable-client.js";
-import { DEFAULT_BASE_URL } from "../auth/api-client.js";
+import { resolveBaseUrl } from "../auth/api-client.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ export interface ListenOptions {
   skipEndpoints?: boolean;
   /**
    * Override the ActionCable WebSocket URL.
-   * Defaults to the wss:// equivalent of DEFAULT_BASE_URL + /cable.
+   * Defaults to the wss:// equivalent of the resolved API base URL + /cable.
    * Injected in tests to point at the FakeCableServer.
    */
   cableUrl?: string;
@@ -59,7 +59,7 @@ interface EventMessage {
 
 /**
  * Derive the ActionCable WebSocket URL from the HTTP API base URL.
- * https://api.frame.dev → wss://api.frame.dev/cable
+ * https://api.framepayments.com → wss://api.framepayments.com/cable
  */
 function deriveCableUrl(apiBaseUrl: string): string {
   const wsScheme = apiBaseUrl.startsWith("https://") ? "wss://" : "ws://";
@@ -87,7 +87,7 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
   // Build the WebSocket URL, appending the API key as a query parameter so
   // the Rails server can authenticate the connection.
   const baseWsUrl =
-    opts.cableUrl ?? deriveCableUrl(DEFAULT_BASE_URL);
+    opts.cableUrl ?? deriveCableUrl(resolveBaseUrl(cred));
   const wsUrl = new URL(baseWsUrl);
   wsUrl.searchParams.set("api_key", cred.apiKey);
 

@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
-import { createApiClient, DEFAULT_BASE_URL, type ApiClient } from "../auth/api-client.js";
+import { createApiClient, resolveBaseUrl, type ApiClient } from "../auth/api-client.js";
 
 // Import and re-export canonical event lists from the lightweight constants
 // module so importers of trigger.ts see a single public API surface, while
@@ -178,7 +178,7 @@ export async function run(eventCode: string): Promise<void> {
     throw new Error("Not logged in. Run `frame login` first.");
   }
 
-  const client = createApiClient({ apiKey: cred.apiKey, baseUrl: DEFAULT_BASE_URL });
+  const client = createApiClient({ apiKey: cred.apiKey, baseUrl: resolveBaseUrl(cred) });
   const fixture = loadFixture(eventCode);
 
   await runWithBanner({ merchant: cred.merchant, mode: "sandbox" }, async () => {

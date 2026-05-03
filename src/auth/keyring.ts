@@ -10,6 +10,13 @@ import * as keytar from "keytar";
 export interface Credential {
   apiKey: string;
   merchant: string;
+  /**
+   * Optional API base URL this credential was issued against. Set when
+   * `frame login --base-url <url>` (or the FRAME_API_BASE_URL env var) is
+   * used to point the CLI at a non-production host. Omitted credentials
+   * fall back to the hardcoded production default.
+   */
+  baseUrl?: string;
 }
 
 const SERVICE = "frame-cli";

@@ -66,16 +66,22 @@ program
 program
   .command("login")
   .description("Authenticate with your Frame sandbox API key")
+  .option(
+    "--base-url <url>",
+    "Override the API base URL (e.g. http://localhost:3000 for local dev). Persisted with the credential. Falls back to $FRAME_API_BASE_URL, then the production default.",
+  )
   .addHelpText(
     "after",
     `
 Examples:
   frame login
+  frame login --base-url http://localhost:3000
+  FRAME_API_BASE_URL=https://api.staging.frame.dev frame login
 `,
   )
-  .action(async () => {
+  .action(async (opts: { baseUrl?: string }) => {
     const { run } = await import("./commands/login.js");
-    await run();
+    await run(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {});
   });
 
 program
