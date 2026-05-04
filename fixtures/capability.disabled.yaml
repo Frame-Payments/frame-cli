@@ -1,12 +1,12 @@
 event: capability.disabled
 steps:
   - method: POST
-    path: /api/v1/accounts
+    path: /accounts
     body:
       name: Test Account
     capture: account_id
   - method: POST
-    path: /api/v1/capabilities
+    path: /capabilities
     body:
       account_id: "{account_id}"
       type: card_receive

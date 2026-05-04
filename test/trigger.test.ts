@@ -159,7 +159,7 @@ describe("frame trigger — step output", () => {
     await run("account.created");
 
     const output = stdoutSpy.mock.calls.map((a) => String(a[0])).join("");
-    expect(output).toContain("POST /api/v1/accounts");
+    expect(output).toContain("POST /accounts");
     expect(output).toContain("mock_id_1");
   });
 

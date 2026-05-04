@@ -43,4 +43,26 @@ describe("trigger fixtures sync", () => {
     const yamlFiles = readdirSync(FIXTURES_DIR).filter((f) => f.endsWith(".yaml"));
     expect(yamlFiles).toHaveLength(SUPPORTED_EVENTS.length);
   });
+
+  // Regression: fixture paths used to start with `/api/v1/...`, which
+  // double-versioned the URL because the API client base already ends in
+  // `/v1` (see src/auth/api-client.ts :: HARDCODED_DEFAULT_BASE_URL). The
+  // contract is: fixture `path` is joined as `${base}${path}`, so it must
+  // be relative to the versioned base (e.g. `/accounts`, not `/api/v1/accounts`
+  // and not `/v1/accounts`).
+  it("no fixture path starts with /api or /v1 (would double-version the URL)", () => {
+    const yamlFiles = readdirSync(FIXTURES_DIR).filter((f) => f.endsWith(".yaml"));
+    for (const file of yamlFiles) {
+      const raw = readFileSync(join(FIXTURES_DIR, file), "utf8");
+      const parsed = parse(raw) as { steps: Array<{ path?: string }> };
+      for (const step of parsed.steps ?? []) {
+        if (step.path === undefined) continue;
+        expect(
+          step.path,
+          `${file}: path '${step.path}' must not start with /api or /v1 (base URL already includes /v1)`,
+        ).not.toMatch(/^\/(api|v1)(\/|$)/);
+        expect(step.path, `${file}: path '${step.path}' must start with '/'`).toMatch(/^\//);
+      }
+    }
+  });
 });

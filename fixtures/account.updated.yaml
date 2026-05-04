@@ -1,11 +1,11 @@
 event: account.updated
 steps:
   - method: POST
-    path: /api/v1/accounts
+    path: /accounts
     body:
       name: Test Account
     capture: account_id
   - method: PATCH
-    path: /api/v1/accounts/{account_id}
+    path: /accounts/{account_id}
     body:
       name: Updated Account Name

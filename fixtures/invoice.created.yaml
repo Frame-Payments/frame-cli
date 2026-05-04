@@ -1,12 +1,12 @@
 event: invoice.created
 steps:
   - method: POST
-    path: /api/v1/accounts
+    path: /accounts
     body:
       name: Test Account
     capture: account_id
   - method: POST
-    path: /api/v1/invoices
+    path: /invoices
     body:
       account_id: "{account_id}"
       amount: 2000

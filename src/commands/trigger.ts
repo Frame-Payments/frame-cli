@@ -6,10 +6,10 @@
  *   event: transfer.completed
  *   steps:
  *     - method: POST
- *       path: /api/v1/transfers
+ *       path: /transfers
  *       body: { account_id: "{account_id}", amount: 1000, currency: usd }
  *       capture: transfer_id          # stores response.id in context
- *     - method: force_transition       # posts to /api/v1/test/force_transition
+ *     - method: force_transition       # posts to /test/force_transition
  *       resource_type: transfer
  *       resource_id: "{transfer_id}"
  *       target_state: completed
@@ -18,7 +18,7 @@
  * `path`, `body`, and `resource_id` fields using {variable_name} syntax.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
@@ -102,7 +102,9 @@ async function executeStep(
       resource_id: resourceId,
       target_state: step.target_state,
     };
-    await client.post("/api/v1/test/force_transition", body);
+    // Path is relative to the API client's base URL, which already
+    // includes the `/v1` version prefix.
+    await client.post("/test/force_transition", body);
     process.stdout.write(
       `  force_transition ${step.resource_type} ${resourceId} → ${step.target_state}\n`,
     );
@@ -139,9 +141,32 @@ async function executeStep(
 // Fixture loading
 // ---------------------------------------------------------------------------
 
-// Resolve fixtures/ relative to this source file so it works in both
-// development (src/commands/trigger.ts) and test (same location).
-const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "fixtures");
+// Walk up from this module's directory until we find a sibling `fixtures/`
+// directory. This works in three layouts that all need to keep working:
+//   • dev source via tsx:  src/commands/trigger.ts → ../../fixtures
+//   • vitest:              same as dev
+//   • bundled CLI:         dist/cli.js → ../fixtures
+//   • published npm pkg:   <pkg>/dist/cli.js → ../fixtures (fixtures/ is in
+//                          package.json `files`, so it ships with the tarball)
+export function resolveFixturesDir(startUrl: string): string {
+  let dir = dirname(fileURLToPath(startUrl));
+  // Cap at filesystem root so a misconfigured install fails loudly rather
+  // than looping forever.
+  while (true) {
+    const candidate = join(dir, "fixtures");
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error(
+        `Could not locate fixtures/ directory by walking up from ${startUrl}. ` +
+          `This usually means the package was installed without its fixtures/ folder.`,
+      );
+    }
+    dir = parent;
+  }
+}
+
+const FIXTURES_DIR = resolveFixturesDir(import.meta.url);
 
 function loadFixture(eventCode: string): Fixture {
   const fixturePath = join(FIXTURES_DIR, `${eventCode}.yaml`);

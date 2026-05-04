@@ -1,7 +1,7 @@
 event: account.restricted
 steps:
   - method: POST
-    path: /api/v1/accounts
+    path: /accounts
     body:
       name: Test Account
     capture: account_id

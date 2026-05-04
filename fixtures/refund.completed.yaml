@@ -1,12 +1,12 @@
 event: refund.completed
 steps:
   - method: POST
-    path: /api/v1/accounts
+    path: /accounts
     body:
       name: Test Account
     capture: account_id
   - method: POST
-    path: /api/v1/transfers
+    path: /transfers
     body:
       account_id: "{account_id}"
       amount: 1000
@@ -17,7 +17,7 @@ steps:
     resource_id: "{transfer_id}"
     target_state: completed
   - method: POST
-    path: /api/v1/refunds
+    path: /refunds
     body:
       transfer_id: "{transfer_id}"
     capture: refund_id

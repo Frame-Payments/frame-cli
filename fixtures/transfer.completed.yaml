@@ -1,12 +1,12 @@
 event: transfer.completed
 steps:
   - method: POST
-    path: /api/v1/accounts
+    path: /accounts
     body:
       name: Test Account
     capture: account_id
   - method: POST
-    path: /api/v1/transfers
+    path: /transfers
     body:
       account_id: "{account_id}"
       amount: 1000
