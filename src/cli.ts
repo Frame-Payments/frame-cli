@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { checkForUpdates } from "./update-check/update-check.js";
 import { SUPPORTED_EVENTS, DEPRECATED_EVENTS } from "./commands/trigger-events.js";
+import { formatError } from "./fmt/error.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -274,4 +275,21 @@ program.hook("preAction", async () => {
   await checkForUpdates({ currentVersion: pkg.version });
 });
 
-await program.parseAsync(process.argv);
+// Top-level error handling.
+//
+// Without this, any thrown error (most commonly an ApiError from a failed
+// request) propagates to bin/frame and is rendered as a raw Node stack trace,
+// which is noisy and unhelpful for the actual failure modes (auth, validation,
+// network). We funnel everything through `formatError` for a clean message.
+//
+// Set FRAME_DEBUG=1 to opt back into the full stack when debugging the CLI
+// itself.
+try {
+  await program.parseAsync(process.argv);
+} catch (err) {
+  process.stderr.write(`${formatError(err)}\n`);
+  if (process.env.FRAME_DEBUG === "1" && err instanceof Error && err.stack) {
+    process.stderr.write(`\n${err.stack}\n`);
+  }
+  process.exit(1);
+}

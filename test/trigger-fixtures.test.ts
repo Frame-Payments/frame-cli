@@ -65,4 +65,47 @@ describe("trigger fixtures sync", () => {
       }
     }
   });
+
+  // Regression: every `POST /accounts` fixture step used to send `{ name: "Test Account" }`,
+  // which the API rejects with HTTP 422 because Accounts::CreateContract requires both
+  // `type` (individual|business) and a `profile.<type>` hash with at least one contact
+  // method. See frame/app/contracts/accounts/create_contract.rb. Lock the minimum-valid
+  // shape so future edits can't quietly regress every event trigger that creates an account.
+  it("every POST /accounts fixture body satisfies the CreateContract minimum shape", () => {
+    type AccountBody = {
+      type?: string;
+      profile?: { individual?: { email?: string; phone?: { number?: string } }; business?: unknown };
+    };
+    const yamlFiles = readdirSync(FIXTURES_DIR).filter((f) => f.endsWith(".yaml"));
+    for (const file of yamlFiles) {
+      const raw = readFileSync(join(FIXTURES_DIR, file), "utf8");
+      const parsed = parse(raw) as {
+        steps: Array<{ method?: string; path?: string; body?: AccountBody }>;
+      };
+      for (const step of parsed.steps ?? []) {
+        if (step.method !== "POST" || step.path !== "/accounts") continue;
+        const body = step.body ?? {};
+        expect(body.type, `${file}: POST /accounts body missing 'type'`).toMatch(
+          /^(individual|business)$/,
+        );
+        expect(body.profile, `${file}: POST /accounts body missing 'profile'`).toBeDefined();
+        if (body.type === "individual") {
+          const ind = body.profile?.individual;
+          expect(ind, `${file}: POST /accounts missing profile.individual`).toBeDefined();
+          const hasContact =
+            (ind?.email !== undefined && ind.email !== "") ||
+            (ind?.phone?.number !== undefined && ind.phone.number !== "");
+          expect(
+            hasContact,
+            `${file}: profile.individual must include either email or phone.number`,
+          ).toBe(true);
+        } else {
+          expect(
+            body.profile?.business,
+            `${file}: POST /accounts missing profile.business`,
+          ).toBeDefined();
+        }
+      }
+    }
+  });
 });

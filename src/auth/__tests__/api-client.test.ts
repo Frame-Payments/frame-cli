@@ -138,6 +138,44 @@ describe("ApiError", () => {
     expect(caught?.message).toContain("Unauthorized");
   });
 
+  it("ApiError exposes server-side validation details on 422 responses", async () => {
+    // Mirrors the real Frame API shape from app/controllers/api/v1/accounts_controller.rb:
+    //   { error: { type: "validation_error", message: "Validation failed", errors: { … } } }
+    fetchMock.mockResolvedValueOnce(
+      makeResponse(
+        {
+          error: {
+            type: "validation_error",
+            message: "Validation failed",
+            errors: {
+              type: ["is missing"],
+              profile: ["is missing"],
+            },
+          },
+        },
+        422,
+        false,
+      ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_bad",
+      baseUrl: "https://api.frame.dev",
+    });
+    let caught: ApiError | undefined;
+    try {
+      await client.post("/accounts", { name: "Test" });
+    } catch (e) {
+      caught = e as ApiError;
+    }
+    expect(caught?.status).toBe(422);
+    expect(caught?.message).toBe("Validation failed");
+    expect(caught?.errorType).toBe("validation_error");
+    expect(caught?.details).toEqual({
+      type: ["is missing"],
+      profile: ["is missing"],
+    });
+  });
+
   it("ApiError falls back to HTTP status text when body has no error field", async () => {
     fetchMock.mockResolvedValueOnce(
       makeResponse({ something: "else" }, 500, false),

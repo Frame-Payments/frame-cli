@@ -3,7 +3,10 @@ steps:
   - method: POST
     path: /accounts
     body:
-      name: Test Account
+      type: individual
+      profile:
+        individual:
+          email: test@framepayments.dev
     capture: account_id
   - method: POST
     path: /invoices

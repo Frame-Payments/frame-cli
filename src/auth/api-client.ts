@@ -68,13 +68,28 @@ export interface MeResponse {
 // Error type
 // ---------------------------------------------------------------------------
 
+/**
+ * Field-level validation breakdown returned by the Frame API on 422 responses.
+ * Shape mirrors `dry-validation` errors: `{ field: ["message", …] }`, possibly
+ * nested for hash-typed fields (e.g. `profile: { individual: […] }`).
+ */
+export type ApiErrorDetails = Record<string, unknown>;
+
 export class ApiError extends Error {
+  /** Server-side error category (e.g. "validation_error", "not_found"). */
+  public readonly errorType: string | undefined;
+  /** Field-level validation breakdown when present (422s). */
+  public readonly details: ApiErrorDetails | undefined;
+
   constructor(
     public readonly status: number,
     message: string,
+    extras: { errorType?: string; details?: ApiErrorDetails } = {},
   ) {
     super(message);
     this.name = "ApiError";
+    this.errorType = extras.errorType;
+    this.details = extras.details;
   }
 }
 
@@ -113,19 +128,33 @@ function truncateForError(text: string, max = 200): string {
   return `${collapsed.slice(0, max)}… (${collapsed.length} chars total)`;
 }
 
-function serverErrorMessage(body: unknown): string | null {
+/**
+ * Pull the canonical Frame API error envelope `{ error: { type, message, errors } }`
+ * out of a parsed response body. Returns `null` if the body doesn't match.
+ */
+function parseServerError(
+  body: unknown,
+): { message: string; errorType?: string; details?: ApiErrorDetails } | null {
   if (
-    body !== null &&
-    typeof body === "object" &&
-    "error" in body &&
-    body.error !== null &&
-    typeof body.error === "object" &&
-    "message" in body.error &&
-    typeof body.error.message === "string"
+    body === null ||
+    typeof body !== "object" ||
+    !("error" in body) ||
+    body.error === null ||
+    typeof body.error !== "object"
   ) {
-    return body.error.message;
+    return null;
   }
-  return null;
+  const err = body.error as Record<string, unknown>;
+  if (typeof err.message !== "string") return null;
+
+  const out: { message: string; errorType?: string; details?: ApiErrorDetails } = {
+    message: err.message,
+  };
+  if (typeof err.type === "string") out.errorType = err.type;
+  if (err.errors !== null && typeof err.errors === "object") {
+    out.details = err.errors as ApiErrorDetails;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,8 +187,14 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     }
 
     if (!resp.ok) {
-      const msg = serverErrorMessage(responseBody) ?? `HTTP ${resp.status}`;
-      throw new ApiError(resp.status, msg);
+      const parsed = parseServerError(responseBody);
+      if (parsed === null) {
+        throw new ApiError(resp.status, `HTTP ${resp.status}`);
+      }
+      const extras: { errorType?: string; details?: ApiErrorDetails } = {};
+      if (parsed.errorType !== undefined) extras.errorType = parsed.errorType;
+      if (parsed.details !== undefined) extras.details = parsed.details;
+      throw new ApiError(resp.status, parsed.message, extras);
     }
 
     return responseBody as T;
