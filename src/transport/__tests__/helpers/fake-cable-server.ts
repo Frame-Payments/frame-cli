@@ -1,7 +1,7 @@
 /**
  * In-memory fake ActionCable server.
  *
- * Reusable fixture for cable-client tests and, later, for listen / logs-tail tests.
+ * Reusable fixture for cable-client tests and for listen / logs-tail tests.
  *
  * Features:
  *   - Speaks the ActionCable v1-JSON protocol (welcome → confirm_subscription → messages)
@@ -13,6 +13,29 @@
  *   - ping()                           — send {"type":"ping"} to all clients
  *   - forceDisconnect()               — close all active connections
  *   - close()                         — shut down the server
+ *
+ * Wire-contract documentation
+ * ───────────────────────────
+ * This fixture mirrors the constraints enforced by the production Rails cable
+ * connection class (`Cli::ApplicationCable::Connection`) and the ActionCable
+ * engine. Any change to the real Rails cable connection's wire requirements
+ * MUST be reflected here so test suites catch regressions immediately:
+ *
+ *   Authorization header  — `Authorization: Bearer <api_key>` on every WS
+ *     upgrade. Enforced when `expectedApiKey` is set (HTTP 401 on mismatch).
+ *
+ *   Origin header  — ActionCable's `allow_same_origin_as_host` protection
+ *     requires a non-empty `Origin` header on every upgrade. Enforced when
+ *     `requireOrigin: true` (HTTP 403 when absent). The CLI cable-client
+ *     derives and sends Origin automatically from the WS URL.
+ *
+ *   Channel class allow-list  — `subscribe` commands referencing a channel
+ *     not in `allowedChannels` (when set) receive a `reject_subscription`
+ *     reply, mirroring Rails' "Subscription class not found" behaviour.
+ *
+ * Use `createFullyWiredFakeCableServer` to get all three constraints in one
+ * call. Individual tests that only need a subset can still call
+ * `createFakeCableServer` directly with the options they care about.
  */
 
 import { createServer } from "node:http";
@@ -42,8 +65,10 @@ export interface FakeCableServer {
   readonly received: ReceivedMessage[];
   /** Authorization header values seen on each successful WS upgrade, in arrival order. */
   readonly authHeaders: string[];
-  /** Number of WS upgrades the server rejected for missing/invalid Authorization. */
+  /** Upgrade rejections, in arrival order. Each entry has a reason string. */
   readonly rejectedUpgrades: { reason: string }[];
+  /** Subscribe rejections sent to clients, in arrival order. */
+  readonly rejectedSubscriptions: { identifier: string; reason: string }[];
   /**
    * Push a message to every client subscribed to channelName+params.
    * The message is also buffered for potential replay.
@@ -80,6 +105,29 @@ export interface FakeCableServerOptions {
    * Default: undefined → no auth enforcement (back-compat for older tests).
    */
   expectedApiKey?: string;
+  /**
+   * When true, the server requires a non-empty `Origin` header on every WS
+   * upgrade and rejects requests that omit it with HTTP 403. Mirrors
+   * ActionCable's `allow_same_origin_as_host` forgery protection.
+   *
+   * The CLI cable-client automatically derives and sends Origin from the WS
+   * URL, so positive-path tests are unaffected. Only raw WebSocket connections
+   * that skip the CLI client (or incorrectly configured clients) will fail.
+   *
+   * Default: false → no Origin enforcement (back-compat for older tests).
+   */
+  requireOrigin?: boolean;
+  /**
+   * When set, the server only acknowledges `subscribe` commands whose channel
+   * identifier references one of these class strings. Subscriptions for any
+   * other channel class receive a `reject_subscription` reply, mirroring Rails'
+   * `Subscription class not found` behaviour.
+   *
+   * Use fully-namespaced Rails class names (e.g. `"Cli::LogsChannel"`).
+   *
+   * Default: undefined → any channel is accepted (back-compat for older tests).
+   */
+  allowedChannels?: string[];
 }
 
 export async function createFakeCableServer(
@@ -99,9 +147,11 @@ export async function createFakeCableServer(
 
   const authHeaders: string[] = [];
   const rejectedUpgrades: { reason: string }[] = [];
+  const rejectedSubscriptions: { identifier: string; reason: string }[] = [];
 
   httpServer.on("upgrade", (req, socket, head) => {
     const authHeader = req.headers["authorization"];
+    // ── Authorization check ────────────────────────────────────────────────
     if (expectedApiKey != null) {
       if (typeof authHeader !== "string" || authHeader.length === 0) {
         rejectedUpgrades.push({ reason: "missing Authorization header" });
@@ -113,6 +163,16 @@ export async function createFakeCableServer(
       if (scheme !== "Bearer" || token !== expectedApiKey) {
         rejectedUpgrades.push({ reason: `bad Authorization: ${authHeader}` });
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+    }
+    // ── Origin check ──────────────────────────────────────────────────────
+    if (opts.requireOrigin) {
+      const originHeader = req.headers["origin"];
+      if (typeof originHeader !== "string" || originHeader.length === 0) {
+        rejectedUpgrades.push({ reason: "missing Origin header" });
+        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
         socket.destroy();
         return;
       }
@@ -153,6 +213,23 @@ export async function createFakeCableServer(
         const rec: ReceivedMessage = { command: "subscribe", identifier };
         if (lastReceivedAt != null) rec.last_received_at = lastReceivedAt;
         received.push(rec);
+
+        // ── Channel allow-list check ─────────────────────────────────────
+        if (opts.allowedChannels != null) {
+          let channelName: string | undefined;
+          try {
+            const parsed = JSON.parse(identifier) as Record<string, unknown>;
+            channelName = parsed["channel"] as string | undefined;
+          } catch {
+            // malformed identifier — treat as unknown
+          }
+          if (!channelName || !opts.allowedChannels.includes(channelName)) {
+            const reason = `Subscription class not found: ${JSON.stringify(channelName ?? identifier)}`;
+            rejectedSubscriptions.push({ identifier, reason });
+            ws.send(JSON.stringify({ type: "reject_subscription", identifier }));
+            return;
+          }
+        }
 
         clientSubs.get(ws)?.add(identifier);
         ws.send(JSON.stringify({ type: "confirm_subscription", identifier }));
@@ -214,6 +291,7 @@ export async function createFakeCableServer(
     received,
     authHeaders,
     rejectedUpgrades,
+    rejectedSubscriptions,
 
     send(channelName: string, params: Record<string, unknown>, data: unknown) {
       const identifier = makeIdentifier(channelName, params);
@@ -253,4 +331,36 @@ export async function createFakeCableServer(
       });
     },
   };
+}
+
+// ─── Convenience factory ───────────────────────────────────────────────────────
+
+/**
+ * One-liner for the fully-wired setup that mirrors every production Rails
+ * cable-connection constraint:
+ *
+ *   - Authorization: Bearer <apiKey>  (HTTP 401 if missing / wrong)
+ *   - Origin header                   (HTTP 403 if missing)
+ *   - Channel allow-list              (reject_subscription if not in list)
+ *
+ * Individual tests that need a subset of these constraints can still call
+ * `createFakeCableServer` directly with the options they want.
+ *
+ * Example:
+ *   const server = await createFullyWiredFakeCableServer(
+ *     "sk_test_xyz",
+ *     ["Cli::LogsChannel", "Cli::WebhookListenChannel"],
+ *   );
+ */
+export function createFullyWiredFakeCableServer(
+  apiKey: string,
+  allowedChannels: string[],
+  extra: Omit<FakeCableServerOptions, "expectedApiKey" | "requireOrigin" | "allowedChannels"> = {},
+): Promise<FakeCableServer> {
+  return createFakeCableServer({
+    ...extra,
+    expectedApiKey: apiKey,
+    requireOrigin: true,
+    allowedChannels,
+  });
 }
