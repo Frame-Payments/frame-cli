@@ -149,9 +149,8 @@ describe("fake-cable-server wire constraints", () => {
       ws.close();
     });
 
-    it("rejects before Auth is checked when Origin is missing (Origin first in check order)", async () => {
-      // Actually, looking at the implementation, Auth is checked first, then Origin.
-      // This test verifies the case where a request is missing Origin but has no auth configured.
+    it("checks Authorization before Origin when both are required", async () => {
+      // Auth is checked first: a request missing all headers triggers 401, not 403.
       server = await createFakeCableServer({
         requireOrigin: true,
         expectedApiKey: "sk_test_abc",
@@ -214,25 +213,14 @@ describe("fake-cable-server wire constraints", () => {
     it("sends reject_subscription frame back to the client for unknown channel", async () => {
       const { ws } = openRawWs(server.url);
 
-      const frames = await collectFrames(ws, (f) => f.some((raw) => raw.includes('"welcome"')));
+      await collectFrames(ws, (f) => f.some((raw) => raw.includes('"welcome"')));
 
       ws.send(JSON.stringify({
         command: "subscribe",
         identifier: JSON.stringify({ channel: "BadChannel" }),
       }));
 
-      // Collect until we see a reject_subscription
-      const allFrames = await new Promise<string[]>((resolve, reject) => {
-        const collected = [...frames];
-        const deadline = setTimeout(() => reject(new Error("timeout waiting for reject_subscription")), 2_000);
-        ws.on("message", (raw) => {
-          collected.push(raw.toString());
-          if (collected.some((f) => f.includes("reject_subscription"))) {
-            clearTimeout(deadline);
-            resolve(collected);
-          }
-        });
-      });
+      const allFrames = await collectFrames(ws, (f) => f.some((raw) => raw.includes("reject_subscription")));
 
       const rejectFrame = allFrames.find((f) => f.includes("reject_subscription"));
       expect(rejectFrame).toBeDefined();
@@ -251,20 +239,8 @@ describe("fake-cable-server wire constraints", () => {
         identifier: JSON.stringify({ channel: "Cli::LogsChannel" }),
       }));
 
-      const allFrames = await new Promise<string[]>((resolve, reject) => {
-        const collected: string[] = [];
-        const deadline = setTimeout(() => reject(new Error("timeout")), 2_000);
-        ws.on("message", (raw) => {
-          collected.push(raw.toString());
-          if (collected.some((f) => f.includes("confirm_subscription"))) {
-            clearTimeout(deadline);
-            resolve(collected);
-          }
-        });
-      });
-
-      const confirmFrame = allFrames.find((f) => f.includes("confirm_subscription"));
-      expect(confirmFrame).toBeDefined();
+      const allFrames = await collectFrames(ws, (f) => f.some((raw) => raw.includes("confirm_subscription")));
+      expect(allFrames.some((f) => f.includes("confirm_subscription"))).toBe(true);
       expect(server.rejectedSubscriptions).toHaveLength(0);
       ws.close();
     });
@@ -281,25 +257,14 @@ describe("fake-cable-server wire constraints", () => {
         identifier: JSON.stringify({ channel: "AnyRandomChannel" }),
       }));
 
-      const allFrames = await new Promise<string[]>((resolve, reject) => {
-        const collected: string[] = [];
-        const deadline = setTimeout(() => reject(new Error("timeout")), 2_000);
-        ws.on("message", (raw) => {
-          collected.push(raw.toString());
-          if (collected.some((f) => f.includes("confirm_subscription"))) {
-            clearTimeout(deadline);
-            resolve(collected);
-          }
-        });
-      });
-
+      const allFrames = await collectFrames(ws, (f) => f.some((raw) => raw.includes("confirm_subscription")));
       expect(allFrames.some((f) => f.includes("confirm_subscription"))).toBe(true);
       expect(openServer.rejectedSubscriptions).toHaveLength(0);
       ws.close();
       await openServer.close();
     });
 
-    it("records rejected subscriptions but still records them in .received", async () => {
+    it("tracks rejected subscriptions in both .rejectedSubscriptions and .received", async () => {
       const { ws } = openRawWs(server.url);
 
       await collectFrames(ws, (f) => f.some((raw) => raw.includes('"welcome"')));
@@ -371,18 +336,7 @@ describe("fake-cable-server wire constraints", () => {
         identifier: JSON.stringify({ channel: "Cli::LogsChannel" }),
       }));
 
-      const allFrames = await new Promise<string[]>((resolve, reject) => {
-        const collected: string[] = [];
-        const deadline = setTimeout(() => reject(new Error("timeout")), 2_000);
-        ws.on("message", (raw) => {
-          collected.push(raw.toString());
-          if (collected.some((f) => f.includes("confirm_subscription"))) {
-            clearTimeout(deadline);
-            resolve(collected);
-          }
-        });
-      });
-
+      const allFrames = await collectFrames(ws, (f) => f.some((raw) => raw.includes("confirm_subscription")));
       expect(allFrames.some((f) => f.includes("confirm_subscription"))).toBe(true);
       expect(server.rejectedUpgrades).toHaveLength(0);
       expect(server.rejectedSubscriptions).toHaveLength(0);
