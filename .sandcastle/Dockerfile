@@ -21,7 +21,10 @@ RUN npm install -g @schpet/linear-cli
 # Rename the base image's "node" user (UID 1000) to "agent".
 # This keeps UID 1000 so that --userns=keep-id (Podman) and
 # --user 1000:1000 (Docker) map to the correct home directory owner.
-RUN usermod -d /home/agent -m -l agent node
+RUN groupmod -n agent node \
+  && usermod -d /home/agent -m -l agent node \
+  && chown -R agent:agent /home/agent \
+  && chmod -R a+rwX /home/agent
 
 # Install pi coding agent (run as root before USER agent)
 RUN npm install -g @mariozechner/pi-coding-agent
