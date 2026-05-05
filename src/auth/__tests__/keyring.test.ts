@@ -28,7 +28,7 @@ const mockGet = vi.mocked(keytar.getPassword);
 const mockSet = vi.mocked(keytar.setPassword);
 const mockDelete = vi.mocked(keytar.deletePassword);
 
-const CRED: Credential = { apiKey: "sk_test_abc123", merchant: "acct_test_001" };
+const CRED: Credential = { apiKey: "sk_test_abc123", merchant: "acct_test_001", devMode: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
