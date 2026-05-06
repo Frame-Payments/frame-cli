@@ -1,6 +1,6 @@
 # ISSUES
 
-Here are the open Linear issues tagged `ready-for-cli-agent` in this team:
+Here are the open Linear issues tagged `ready-for-cli-agent` in this team. This label is scoped to work that lives in the `frame-cli` repo, regardless of which Linear project the issue belongs to.
 
 <issues-json>
 
