@@ -40,6 +40,12 @@
 
 import { createServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
+import {
+  parseAck,
+  CHANNEL_NAME as WEBHOOK_LISTEN_CHANNEL,
+  type AckPayload,
+  type BroadcastEventMessage,
+} from "../../../transport/webhook-listen-protocol.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -93,6 +99,47 @@ function makeIdentifier(
 
 // ─── Factory ───────────────────────────────────────────────────────────────────
 
+// ─── webhookListenChannel preset types ────────────────────────────────────────
+
+/**
+ * Options for the webhookListenChannel preset. When supplied, the fake server
+ * mirrors `Cli::WebhookListenChannel` on the Rails side:
+ *   - Auto-sends a real-shaped welcome on subscribe
+ *   - Validates ack messages and records them in receivedAcks
+ *   - Optionally rejects empty event_codes (pre-FRA-3537 behavior)
+ */
+export interface WebhookListenChannelPresetOptions {
+  /** Session secret sent in the welcome. Defaults to a test-safe constant. */
+  whsec?: string;
+  /** Endpoint ID sent in the welcome. Default: "wep_test_001" */
+  endpointId?: string;
+  /** Session token sent in the welcome. Default: "cs_test_001" */
+  sessionToken?: string;
+  /**
+   * When true, rejects subscriptions with empty event_codes array.
+   * Mirrors pre-FRA-3537 server behavior where event_codes presence: true
+   * caused Webhook::Endpoint.create! to raise on bare subscribe.
+   * Default: false (FRA-3537 relaxed the validation).
+   */
+  rejectEmptyEventCodes?: boolean;
+}
+
+export interface WebhookListenFakeCableServer extends FakeCableServer {
+  /** The session secret (whsec) included in the welcome. */
+  readonly whsec: string;
+  /** The session token included in the welcome. */
+  readonly sessionToken: string;
+  /** The endpoint ID included in the welcome. */
+  readonly endpointId: string;
+  /** Validated AckPayload objects received from the client, in arrival order. */
+  readonly receivedAcks: AckPayload[];
+  /**
+   * Broadcast a webhook event in the real wire shape (BroadcastEventMessage)
+   * to all clients subscribed to Cli::WebhookListenChannel.
+   */
+  broadcastEvent(event: BroadcastEventMessage): void;
+}
+
 export interface FakeCableServerOptions {
   /** Replay window for buffered events. Default 5 minutes. */
   replayWindowMs?: number;
@@ -128,6 +175,18 @@ export interface FakeCableServerOptions {
    * Default: undefined → any channel is accepted (back-compat for older tests).
    */
   allowedChannels?: string[];
+  /**
+   * @internal
+   * Hook called after confirm_subscription is sent, with the ws socket
+   * and the identifier. Used by preset wrappers.
+   */
+  _onSubscribed?: (ws: WebSocket, identifier: string) => void;
+  /**
+   * @internal
+   * Hook called when a "message" command is received (after recording in
+   * received). Used by preset wrappers to inspect ack payloads.
+   */
+  _onMessage?: (identifier: string, data: unknown) => void;
 }
 
 export async function createFakeCableServer(
@@ -234,6 +293,9 @@ export async function createFakeCableServer(
         clientSubs.get(ws)?.add(identifier);
         ws.send(JSON.stringify({ type: "confirm_subscription", identifier }));
 
+        // Fire the subscribe hook (used by preset wrappers)
+        opts._onSubscribed?.(ws, identifier);
+
         // Replay buffered events if client reconnected within the window
         if (lastReceivedAt != null) {
           const now = Date.now();
@@ -264,6 +326,7 @@ export async function createFakeCableServer(
           ? (JSON.parse(msg["data"] as string) as unknown)
           : undefined;
         received.push({ command: "message", identifier, data });
+        opts._onMessage?.(identifier, data);
         return;
       }
 
@@ -363,4 +426,118 @@ export function createFullyWiredFakeCableServer(
     requireOrigin: true,
     allowedChannels,
   });
+}
+
+// ─── webhookListenChannel preset factory ─────────────────────────────────────────────────
+
+/**
+ * Creates a FakeCableServer wired to mirror `Cli::WebhookListenChannel`:
+ *
+ *   - On subscribe: validates event_codes param, auto-sends real-shaped welcome
+ *   - On ack message: parses and records the AckPayload in receivedAcks
+ *   - broadcastEvent() sends a BroadcastEventMessage to all channel subscribers
+ *
+ * All existing FakeCableServerOptions are forwarded (auth, origin, etc.),
+ * so you can combine this preset with the fully-wired auth constraints.
+ *
+ * @param presetOpts  WebhookListenChannel-specific options.
+ * @param baseOpts    Forwarded to createFakeCableServer (auth, etc.).
+ */
+export async function createWebhookListenFakeCableServer(
+  presetOpts: WebhookListenChannelPresetOptions = {},
+  baseOpts: Omit<FakeCableServerOptions, "_onSubscribed" | "_onMessage"> = {},
+): Promise<WebhookListenFakeCableServer> {
+  const whsec = presetOpts.whsec ?? "whsec_cli_preset_test_00000000000000";
+  const endpointId = presetOpts.endpointId ?? "wep_test_001";
+  const sessionToken = presetOpts.sessionToken ?? "cs_test_001";
+  const receivedAcks: AckPayload[] = [];
+
+  // Identifier that matches any Cli::WebhookListenChannel subscriber.
+  // Since the channel params vary per-subscriber (event_codes, session_token,
+  // skip_endpoints, etc.), we send directly on the subscribe hook rather than
+  // via server.send() to avoid identifier mismatch.
+  const base = await createFakeCableServer({
+    ...baseOpts,
+    _onSubscribed(ws, identifier) {
+      // Check if this is a WebhookListenChannel subscribe
+      let channelName: string | undefined;
+      let eventCodes: unknown;
+      try {
+        const parsed = JSON.parse(identifier) as Record<string, unknown>;
+        channelName = parsed["channel"] as string | undefined;
+        eventCodes = parsed["event_codes"];
+      } catch {
+        return;
+      }
+
+      if (channelName !== WEBHOOK_LISTEN_CHANNEL) return;
+
+      // Optionally reject empty event_codes (pre-FRA-3537 behavior)
+      if (presetOpts.rejectEmptyEventCodes) {
+        if (!Array.isArray(eventCodes) || eventCodes.length === 0) {
+          ws.send(
+            JSON.stringify({
+              type: "reject_subscription",
+              identifier,
+              message: "event_codes must be present",
+            }),
+          );
+          return;
+        }
+      }
+
+      // Auto-send real-shaped welcome
+      const welcome = {
+        type: "session",
+        whsec,
+        endpoint_id: endpointId,
+        session_token: sessionToken,
+      };
+      ws.send(JSON.stringify({ identifier, message: welcome }));
+    },
+    _onMessage(_identifier, data) {
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        (data as Record<string, unknown>)["action"] === "ack"
+      ) {
+        try {
+          // Strip the `action` field before passing to parseAck since it's
+          // part of the ActionCable message wrapper, not the AckPayload.
+          const { action: _action, ...rest } = data as Record<string, unknown>;
+          const ack = parseAck(rest);
+          receivedAcks.push(ack);
+        } catch {
+          // Malformed ack — don't push, let tests inspect via .received
+        }
+      }
+    },
+  });
+
+  return {
+    ...base,
+    get whsec() { return whsec; },
+    get sessionToken() { return sessionToken; },
+    get endpointId() { return endpointId; },
+    get receivedAcks() { return receivedAcks; },
+    broadcastEvent(event: BroadcastEventMessage) {
+      // Send to all clients subscribed to Cli::WebhookListenChannel
+      // (any params variant) by scanning received subscribe messages.
+      const sentTo = new Set<string>();
+      for (const msg of base.received) {
+        if (msg.command !== "subscribe" || !msg.identifier) continue;
+        try {
+          const parsed = JSON.parse(msg.identifier) as Record<string, unknown>;
+          if (parsed["channel"] !== WEBHOOK_LISTEN_CHANNEL) continue;
+          if (sentTo.has(msg.identifier)) continue;
+          sentTo.add(msg.identifier);
+          base.send(WEBHOOK_LISTEN_CHANNEL, { ...Object.fromEntries(
+            Object.entries(parsed).filter(([k]) => k !== "channel")
+          ) }, event);
+        } catch {
+          // skip malformed identifiers
+        }
+      }
+    },
+  };
 }

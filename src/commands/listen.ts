@@ -1,26 +1,44 @@
 /**
- * `frame listen` — subscribe to WebhookListenChannel via ActionCable and
- * forward incoming webhook events to a local --forward-to URL.
+ * `frame listen` — subscribe to Cli::WebhookListenChannel via ActionCable
+ * and forward incoming webhook events to a local --forward-to URL.
  *
  * Flags:
  *   --forward-to <url>        POST each event here with X-Frame-Event and
- *                             X-Frame-Signature headers signed with the session
- *                             secret received from the channel on connect.
+ *                             X-Frame-Signature headers signed with the
+ *                             session secret (whsec) received in the welcome.
  *   --events <a,b,...>        Filter stream to these event codes (server-side
- *                             via channel params + client-side safety check).
+ *                             via channel params; client-side as belt-and-suspenders).
  *   --skip-endpoints          Instruct server to suppress sibling sandbox
  *                             endpoints for the duration of the session.
  *
- * The welcome session secret (whsec_cli_*) is printed prominently on startup
- * so the merchant can paste it into their local .env to verify signatures.
+ * Wire contract:
+ *   Subscribe params   → event_codes: string[], session_token?: string
+ *                        (plus skip_endpoints in identifier when set)
+ *   Welcome (server→)  → { type: "session", whsec, endpoint_id, session_token }
+ *   Broadcast (server→)→ { webhook_message_id, event_type, headers, payload }
+ *   Ack (→server)      → { action: "ack", webhook_message_id, status,
+ *                          response_body, duration_ms }
+ *
+ * See src/transport/webhook-listen-protocol.ts and ADR-0008 § "Wire contract".
+ *
+ * Sandbox-only enforcement per ADR-0007: live-key credentials cause an
+ * immediate error before any network connection is attempted.
  */
 
-import { createHmac } from "node:crypto";
 import { runWithBanner } from "../fmt/banner.js";
 import { get } from "../auth/keyring.js";
 import { createCableClient } from "../transport/cable-client.js";
 import { deriveCableUrl } from "../transport/derive-cable-url.js";
 import { resolveBaseUrl } from "../auth/api-client.js";
+import {
+  parseWelcome,
+  parseBroadcastEvent,
+  CHANNEL_NAME,
+  type WelcomeMessage,
+  type BroadcastEventMessage,
+} from "../transport/webhook-listen-protocol.js";
+import { forwardEvent } from "../webhook/webhook-forwarder.js";
+import { buildAck } from "../webhook/ack-reporter.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,24 +62,15 @@ export interface ListenOptions {
   signal?: AbortSignal;
 }
 
-interface SessionStartedMessage {
-  type: "session_started";
-  session_secret: string;
-}
+// ─── Session state ─────────────────────────────────────────────────────────────
 
-interface EventMessage {
-  type: "event";
-  event_type: string;
-  event_id: string;
-  payload: Record<string, unknown>;
+interface SessionState {
+  whsec: string;
+  endpointId: string;
+  sessionToken: string;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Compute the X-Frame-Signature header value for a request body. */
-function computeSignature(secret: string, body: string): string {
-  return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
-}
 
 /** Format the current wall-clock time as HH:MM:SS for the event log line. */
 function timestamp(): string {
@@ -76,17 +85,25 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
     throw new Error("Not logged in. Run `frame login` first.");
   }
 
-  // Authentication is by `Authorization: Bearer <apiKey>` on the WS upgrade;
-  // see `Cli::ApplicationCable::Connection` (Rails) and ADR-0008. Earlier
-  // versions of this command appended `?api_key=...` as a query param, but
-  // the Rails connection class never reads it — the connection only worked by
-  // accident in tests because the fake server didn't enforce auth.
+  // Sandbox-only enforcement (ADR-0007): live-key credentials must never
+  // subscribe production traffic into a dev tool.
+  if (!cred.devMode) {
+    throw new Error(
+      "frame listen only works in sandbox mode. " +
+        "Your current credential is a live key. " +
+        "Switch to a sandbox credential with `frame login`.",
+    );
+  }
+
   const wsUrl = opts.cableUrl ?? deriveCableUrl(resolveBaseUrl(cred));
 
-  const channelParams: Record<string, unknown> = {};
-  if (opts.events && opts.events.length > 0) {
-    channelParams.events = opts.events;
-  }
+  // Build channel identifier params.
+  // event_codes: empty array = "all events"; non-empty = server-side filter.
+  // skip_endpoints is a channel param (not in the wire protocol's
+  // parseSubscribeParams, but the Rails channel reads it from params directly).
+  const channelParams: Record<string, unknown> = {
+    event_codes: opts.events && opts.events.length > 0 ? opts.events : [],
+  };
   if (opts.skipEndpoints) {
     channelParams.skip_endpoints = true;
   }
@@ -94,93 +111,99 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
   await runWithBanner(
     { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
     async () => {
-    const client = createCableClient(wsUrl, { apiKey: cred.apiKey });
+      const client = createCableClient(wsUrl, { apiKey: cred.apiKey });
 
-    let sessionSecret: string | null = null;
+      let session: SessionState | null = null;
 
-    const subscription = client
-      // Channel class is `Cli::WebhookListenChannel` server-side; the bare
-      // name fails the constant lookup with `Subscription class not found`.
-      .subscribe("Cli::WebhookListenChannel", channelParams)
-      .on("session_started", (raw) => {
-        const msg = raw as SessionStartedMessage;
-        sessionSecret = msg.session_secret;
-        process.stdout.write(
-          `\n  ✓ Session started\n    Webhook secret: ${sessionSecret}\n    Paste this into your local .env as FRAME_WEBHOOK_SECRET.\n\n`,
-        );
-      })
-      .on("event", (raw) => {
-        void handleEvent(raw as EventMessage);
-      });
-
-    async function handleEvent(evt: EventMessage): Promise<void> {
-      // Client-side filter (belt-and-suspenders; server also filters via params)
-      if (
-        opts.events &&
-        opts.events.length > 0 &&
-        !opts.events.includes(evt.event_type)
-      ) {
-        return;
-      }
-
-      const bodyStr = JSON.stringify(evt.payload ?? {});
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-Frame-Event": evt.event_type,
-        ...(sessionSecret != null
-          ? { "X-Frame-Signature": computeSignature(sessionSecret, bodyStr) }
-          : {}),
-      };
-
-      let localStatus = 0;
-      if (opts.forwardTo) {
-        try {
-          const resp = await fetch(opts.forwardTo, {
-            method: "POST",
-            headers,
-            body: bodyStr,
-          });
-          localStatus = resp.status;
-        } catch (err) {
-          process.stderr.write(
-            `  ✗ Forward failed: ${(err as Error).message}\n`,
+      const subscription = client
+        .subscribe(CHANNEL_NAME, channelParams)
+        // Welcome message: type = "session" (from the ActionCable channel)
+        .on("session", (raw) => {
+          let welcome: WelcomeMessage;
+          try {
+            welcome = parseWelcome(raw);
+          } catch (err) {
+            process.stderr.write(
+              `  ✗ Welcome parse error: ${(err as Error).message}\n`,
+            );
+            return;
+          }
+          session = {
+            whsec: welcome.whsec,
+            endpointId: welcome.endpoint_id,
+            sessionToken: welcome.session_token,
+          };
+          process.stdout.write(
+            `\n  ✓ Session started\n` +
+              `    Webhook secret: ${welcome.whsec}\n` +
+              `    Paste this into your local .env as FRAME_WEBHOOK_SECRET.\n\n`,
           );
-        }
-      }
-
-      // Acknowledge receipt back to the server
-      try {
-        subscription.perform("ack", {
-          event_id: evt.event_id,
-          status: localStatus,
+        })
+        // Broadcast events have no `type` field → cable client defaults to "message"
+        .on("message", (raw) => {
+          void handleEvent(raw);
         });
-      } catch {
-        // Not connected (transient); server will retry
-      }
 
-      process.stdout.write(
-        `${timestamp()}  ${evt.event_type}  → ${localStatus || "-"}\n`,
-      );
-    }
-
-    // ── Wait until aborted or SIGINT ────────────────────────────────────────
-
-    await new Promise<void>((resolve) => {
-      if (opts.signal) {
-        if (opts.signal.aborted) {
-          resolve();
+      async function handleEvent(raw: unknown): Promise<void> {
+        let event: BroadcastEventMessage;
+        try {
+          event = parseBroadcastEvent(raw);
+        } catch {
+          // Not a broadcast event (e.g. the welcome was routed here) — ignore
           return;
         }
-        opts.signal.addEventListener("abort", () => resolve(), { once: true });
-      } else {
-        // Running interactively — stop on Ctrl-C
-        const onSignal = () => resolve();
-        process.once("SIGINT", onSignal);
-        process.once("SIGTERM", onSignal);
-      }
-    });
 
-    subscription.unsubscribe();
-    client.disconnect();
-  });
+        // Client-side filter (belt-and-suspenders; server also filters)
+        if (
+          opts.events &&
+          opts.events.length > 0 &&
+          !opts.events.includes(event.event_type)
+        ) {
+          return;
+        }
+
+        let result = { status: 0, durationMs: 0, responseBody: "" };
+        if (opts.forwardTo && session) {
+          result = await forwardEvent(event, session.whsec, opts.forwardTo);
+        } else if (opts.forwardTo) {
+          // Welcome not yet received — log but don't forward unsigned
+          process.stderr.write(
+            `  ✗ Event received before welcome; skipping forward\n`,
+          );
+        }
+
+        // Acknowledge receipt back to the server
+        try {
+          const ackPayload = buildAck(result, event.webhook_message_id);
+          subscription.perform("ack", ackPayload as unknown as Record<string, unknown>);
+        } catch {
+          // Not connected (transient); server will retry
+        }
+
+        process.stdout.write(
+          `${timestamp()}  ${event.event_type}  → ${result.status || "-"}\n`,
+        );
+      }
+
+      // ── Wait until aborted or SIGINT ──────────────────────────────────────
+
+      await new Promise<void>((resolve) => {
+        if (opts.signal) {
+          if (opts.signal.aborted) {
+            resolve();
+            return;
+          }
+          opts.signal.addEventListener("abort", () => resolve(), { once: true });
+        } else {
+          // Running interactively — stop on Ctrl-C
+          const onSignal = () => resolve();
+          process.once("SIGINT", onSignal);
+          process.once("SIGTERM", onSignal);
+        }
+      });
+
+      subscription.unsubscribe();
+      client.disconnect();
+    },
+  );
 }

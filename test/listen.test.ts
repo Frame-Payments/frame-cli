@@ -1,24 +1,30 @@
 /**
  * Integration tests for `frame listen`.
  *
- * Uses the real FakeCableServer so no network is required; fetch is stubbed
- * for the --forward-to POST calls.
+ * Uses the real FakeCableServer with the webhookListenChannel preset so
+ * the wire contract matches the real Rails channel. No network is required;
+ * fetch is stubbed for the --forward-to POST calls.
  *
  * Coverage:
- *   1. Session secret is printed in the startup output
- *   2. Event is POSTed to --forward-to with X-Frame-Event and X-Frame-Signature headers
- *   3. Signature is HMAC-SHA256 of the JSON body, formatted as sha256=<hex>
- *   4. After the POST, subscription.perform("ack", ...) is sent back with event_id + status
- *   5. Printed line includes event_type and local HTTP status
- *   6. Banner (mode: sandbox + merchant) is printed before listen output
- *   7. Command registered via lazy-import path (smoke test via cli wiring)
+ *   1. Banner printed before listen output (regression)
+ *   2. Session secret (whsec) printed after welcome
+ *   3. Event POSTed to --forward-to with X-Frame-Event and X-Frame-Signature
+ *   4. Signature is HMAC-SHA256 of the JSON body, formatted as sha256=<hex>
+ *   5. Ack sent back with real wire field names (webhook_message_id, status,
+ *      response_body, duration_ms) — not the old imagined shape (event_id)
+ *   6. Per-event log line includes event type and local HTTP status
+ *   7. --events a,b,c: subscribe params include event_codes filter array
+ *   8. --skip-endpoints: channel identifier includes skip_endpoints: true
+ *   9. Live-key credential rejected (sandbox-only enforcement)
+ *  10. 5xx local response: reported in log, does not crash listener
+ *  11. Unreachable forward URL: clear log line, does not crash listener
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createHmac } from "node:crypto";
 import {
-  createFakeCableServer,
-  type FakeCableServer,
+  createWebhookListenFakeCableServer,
+  type WebhookListenFakeCableServer,
 } from "../src/transport/__tests__/helpers/fake-cable-server.js";
 import { run } from "../src/commands/listen.js";
 
@@ -48,19 +54,36 @@ function waitFor(predicate: () => boolean, timeout = 3_000): Promise<void> {
   });
 }
 
+function makeEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    webhook_message_id: "wmsg_001",
+    event_type: "account.created",
+    headers: {
+      "X-Frame-Event": "account.created",
+      "X-Frame-Signature": "sha256=" + "0".repeat(64),
+      "X-Frame-Webhook-Id": "wmsg_001",
+      "User-Agent": "Frame-Robot v1.0.0",
+      "Content-Type": "application/json",
+    },
+    payload: { id: "acct_1", name: "Test" },
+    ...overrides,
+  };
+}
+
 // ─── Suite ─────────────────────────────────────────────────────────────────────
 
 describe("frame listen", () => {
-  let server: FakeCableServer;
+  let server: WebhookListenFakeCableServer;
   let ac: AbortController;
   let stdoutSpy: ReturnType<typeof vi.spyOn>;
   let stderrSpy: ReturnType<typeof vi.spyOn>;
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    // Enforce the same wire-level auth contract as the Rails connection class
-    // so this suite catches the "forgot to send Authorization" bug shape.
-    server = await createFakeCableServer({ expectedApiKey: "sk_test_xyz" });
+    server = await createWebhookListenFakeCableServer(
+      {},
+      { expectedApiKey: "sk_test_xyz" },
+    );
     ac = new AbortController();
     stdoutSpy = vi
       .spyOn(process.stdout, "write")
@@ -72,7 +95,11 @@ describe("frame listen", () => {
     vi.stubGlobal("fetch", mockFetch);
     vi.clearAllMocks();
 
-    mockGet.mockResolvedValue({ apiKey: "sk_test_xyz", merchant: "acct_001", devMode: true });
+    mockGet.mockResolvedValue({
+      apiKey: "sk_test_xyz",
+      merchant: "acct_001",
+      devMode: true,
+    });
   });
 
   afterEach(async () => {
@@ -83,41 +110,46 @@ describe("frame listen", () => {
     await server.close();
   });
 
-  // ── 1. Session secret printed ────────────────────────────────────────────────
+  // ── 1. Banner printed ────────────────────────────────────────────────────────
 
-  it("prints the session secret from the channel welcome message", async () => {
+  it("prints mode: sandbox + merchant in the banner before listen output", async () => {
     const runPromise = run({ cableUrl: server.url, signal: ac.signal });
 
     await waitFor(() =>
-      server.received.some(
-        (m) =>
-          m.command === "subscribe" &&
-          m.identifier?.includes("WebhookListenChannel"),
-      ),
+      stderrSpy.mock.calls.some((c) => String(c[0]).includes("mode: sandbox")),
     );
 
-    server.send("Cli::WebhookListenChannel", {}, {
-      type: "session_started",
-      session_secret: "whsec_cli_test123",
-    });
-
-    await waitFor(() =>
-      stdoutSpy.mock.calls.some((c) =>
-        String(c[0]).includes("whsec_cli_test123"),
-      ),
-    );
-
-    const output = stdoutSpy.mock.calls.map((c) => String(c[0])).join("");
-    expect(output).toContain("whsec_cli_test123");
+    const bannerOutput = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(bannerOutput).toContain("mode: sandbox");
+    expect(bannerOutput).toContain("acct_001");
 
     ac.abort();
     await runPromise;
   });
 
-  // ── 2–4. Integration: POST + headers + ack ───────────────────────────────────
+  // ── 2. Session secret (whsec) printed ────────────────────────────────────────
 
-  it("POSTs the event to --forward-to with X-Frame-Event and X-Frame-Signature, then acks", async () => {
-    mockFetch.mockResolvedValueOnce({ status: 200 });
+  it("prints the whsec from the welcome message as the session secret", async () => {
+    const runPromise = run({ cableUrl: server.url, signal: ac.signal });
+
+    // Preset auto-sends welcome on subscribe; wait for it to reach stdout
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some((c) =>
+        String(c[0]).includes(server.whsec),
+      ),
+    );
+
+    const output = stdoutSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(output).toContain(server.whsec);
+
+    ac.abort();
+    await runPromise;
+  });
+
+  // ── 3–4. POST headers + signature verification ───────────────────────────────
+
+  it("POSTs the event to --forward-to with X-Frame-Event and X-Frame-Signature", async () => {
+    mockFetch.mockResolvedValueOnce({ status: 200, text: () => Promise.resolve("ok") });
 
     const runPromise = run({
       forwardTo: "http://localhost:4000/webhooks",
@@ -125,36 +157,26 @@ describe("frame listen", () => {
       signal: ac.signal,
     });
 
-    // Wait for subscription
+    // Wait for welcome to be processed
     await waitFor(() =>
-      server.received.some(
-        (m) =>
-          m.command === "subscribe" &&
-          m.identifier?.includes("WebhookListenChannel"),
-      ),
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
     );
 
-    // Send session secret first
-    server.send("Cli::WebhookListenChannel", {}, {
-      type: "session_started",
-      session_secret: "whsec_cli_secret_abc",
-    });
-
-    await waitFor(() =>
-      stdoutSpy.mock.calls.some((c) =>
-        String(c[0]).includes("whsec_cli_secret_abc"),
-      ),
+    // Broadcast a real-shaped event
+    server.broadcastEvent(
+      makeEvent({
+        event_type: "transfer.completed",
+        payload: { amount: 1000, currency: "usd" },
+        headers: {
+          "X-Frame-Event": "transfer.completed",
+          "X-Frame-Signature": "sha256=" + "0".repeat(64),
+          "X-Frame-Webhook-Id": "wmsg_001",
+          "User-Agent": "Frame-Robot v1.0.0",
+          "Content-Type": "application/json",
+        },
+      }) as Parameters<typeof server.broadcastEvent>[0],
     );
 
-    // Send an event
-    server.send("Cli::WebhookListenChannel", {}, {
-      type: "event",
-      event_type: "transfer.completed",
-      event_id: "evt_001",
-      payload: { amount: 1000, currency: "usd" },
-    });
-
-    // Wait for the forward-to POST
     await waitFor(() => mockFetch.mock.calls.length > 0);
 
     const [url, fetchOpts] = mockFetch.mock.calls[0] as [
@@ -169,34 +191,22 @@ describe("frame listen", () => {
     const sigHeader = fetchOpts.headers["X-Frame-Signature"];
     expect(sigHeader).toMatch(/^sha256=[0-9a-f]{64}$/);
 
-    // Verify the signature is correct HMAC-SHA256 of the body
+    // Verify the signature is correct HMAC-SHA256 of the payload body
     const expectedSig =
       "sha256=" +
-      createHmac("sha256", "whsec_cli_secret_abc")
+      createHmac("sha256", server.whsec)
         .update(JSON.stringify({ amount: 1000, currency: "usd" }))
         .digest("hex");
     expect(sigHeader).toBe(expectedSig);
-
-    // Wait for ack perform
-    await waitFor(() =>
-      server.received.some((m) => m.command === "message"),
-    );
-
-    const ack = server.received.find((m) => m.command === "message");
-    expect(ack?.data).toMatchObject({
-      action: "ack",
-      event_id: "evt_001",
-      status: 200,
-    });
 
     ac.abort();
     await runPromise;
   });
 
-  // ── 5. Printed line ──────────────────────────────────────────────────────────
+  // ── 5. Ack with real wire field names ────────────────────────────────────────
 
-  it("prints a one-line record with event_type and local status code", async () => {
-    mockFetch.mockResolvedValueOnce({ status: 202 });
+  it("sends ack back with real wire field names (webhook_message_id, status, response_body, duration_ms)", async () => {
+    mockFetch.mockResolvedValueOnce({ status: 200, text: () => Promise.resolve("ok") });
 
     const runPromise = run({
       forwardTo: "http://localhost:4000/webhooks",
@@ -205,28 +215,47 @@ describe("frame listen", () => {
     });
 
     await waitFor(() =>
-      server.received.some(
-        (m) =>
-          m.command === "subscribe" &&
-          m.identifier?.includes("WebhookListenChannel"),
-      ),
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
     );
 
-    server.send("Cli::WebhookListenChannel", {}, {
-      type: "session_started",
-      session_secret: "whsec_cli_s",
+    server.broadcastEvent(
+      makeEvent({ webhook_message_id: "wmsg_ack_test" }) as Parameters<typeof server.broadcastEvent>[0],
+    );
+
+    // Wait for ack to be received and validated by the preset
+    await waitFor(() => server.receivedAcks.length > 0);
+
+    const ack = server.receivedAcks[0];
+    expect(ack.webhook_message_id).toBe("wmsg_ack_test");
+    expect(ack.status).toBe(200);
+    expect(ack.response_body).toBe("ok");
+    expect(typeof ack.duration_ms).toBe("number");
+
+    // Confirm old imagined field (event_id) is NOT present
+    expect("event_id" in ack).toBe(false);
+
+    ac.abort();
+    await runPromise;
+  });
+
+  // ── 6. Per-event log line ─────────────────────────────────────────────────────
+
+  it("prints a one-line record with event_type and local status code", async () => {
+    mockFetch.mockResolvedValueOnce({ status: 202, text: () => Promise.resolve("") });
+
+    const runPromise = run({
+      forwardTo: "http://localhost:4000/webhooks",
+      cableUrl: server.url,
+      signal: ac.signal,
     });
 
     await waitFor(() =>
-      stdoutSpy.mock.calls.some((c) => String(c[0]).includes("whsec_cli_s")),
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
     );
 
-    server.send("Cli::WebhookListenChannel", {}, {
-      type: "event",
-      event_type: "refund.created",
-      event_id: "evt_002",
-      payload: {},
-    });
+    server.broadcastEvent(
+      makeEvent({ event_type: "refund.created" }) as Parameters<typeof server.broadcastEvent>[0],
+    );
 
     await waitFor(() =>
       stdoutSpy.mock.calls.some(
@@ -244,27 +273,10 @@ describe("frame listen", () => {
     await runPromise;
   });
 
-  // ── 6. Banner printed ────────────────────────────────────────────────────────
+  // ── 7. --events filter ───────────────────────────────────────────────────────
 
-  it("prints mode: sandbox + merchant in the banner before listen output", async () => {
-    const runPromise = run({ cableUrl: server.url, signal: ac.signal });
-
-    await waitFor(() =>
-      stderrSpy.mock.calls.some((c) => String(c[0]).includes("mode: sandbox")),
-    );
-
-    const bannerOutput = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
-    expect(bannerOutput).toContain("mode: sandbox");
-    expect(bannerOutput).toContain("acct_001");
-
-    ac.abort();
-    await runPromise;
-  });
-
-  // ── --events filter ──────────────────────────────────────────────────────────
-
-  it("passes events filter as channel param and skips non-matching events client-side", async () => {
-    mockFetch.mockResolvedValue({ status: 200 });
+  it("sends event_codes as subscribe param and skips non-matching events client-side", async () => {
+    mockFetch.mockResolvedValue({ status: 200, text: () => Promise.resolve("") });
 
     const runPromise = run({
       forwardTo: "http://localhost:4000/webhooks",
@@ -273,6 +285,7 @@ describe("frame listen", () => {
       signal: ac.signal,
     });
 
+    // Wait for subscribe
     await waitFor(() =>
       server.received.some(
         (m) =>
@@ -281,45 +294,35 @@ describe("frame listen", () => {
       ),
     );
 
-    // Channel params should include events array
+    // Channel identifier should include event_codes array
     const subMsg = server.received.find(
       (m) =>
         m.command === "subscribe" &&
         m.identifier?.includes("WebhookListenChannel"),
     );
-    const identifier = JSON.parse(subMsg!.identifier!) as Record<
-      string,
-      unknown
-    >;
-    expect(identifier["events"]).toEqual(["transfer.completed"]);
+    const identifier = JSON.parse(subMsg!.identifier!) as Record<string, unknown>;
+    expect(identifier["event_codes"]).toEqual(["transfer.completed"]);
 
-    // Server sends session_started so we have a session secret
-    server.send("Cli::WebhookListenChannel", { events: ["transfer.completed"] }, {
-      type: "session_started",
-      session_secret: "whsec_cli_filter_test",
-    });
-
+    // Wait for welcome
     await waitFor(() =>
-      stdoutSpy.mock.calls.some((c) =>
-        String(c[0]).includes("whsec_cli_filter_test"),
-      ),
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
     );
 
     // Send a non-matching event — should NOT be forwarded
-    server.send("Cli::WebhookListenChannel", { events: ["transfer.completed"] }, {
-      type: "event",
-      event_type: "refund.created",
-      event_id: "evt_skip",
-      payload: {},
-    });
+    server.broadcastEvent(
+      makeEvent({ event_type: "refund.created", webhook_message_id: "wmsg_skip" }) as Parameters<typeof server.broadcastEvent>[0],
+    );
+
+    // Give it a moment
+    await new Promise((r) => setTimeout(r, 80));
 
     // Send matching event — should be forwarded
-    server.send("Cli::WebhookListenChannel", { events: ["transfer.completed"] }, {
-      type: "event",
-      event_type: "transfer.completed",
-      event_id: "evt_match",
-      payload: {},
-    });
+    server.broadcastEvent(
+      makeEvent({
+        event_type: "transfer.completed",
+        webhook_message_id: "wmsg_match",
+      }) as Parameters<typeof server.broadcastEvent>[0],
+    );
 
     await waitFor(() => mockFetch.mock.calls.length > 0);
 
@@ -334,9 +337,9 @@ describe("frame listen", () => {
     await runPromise;
   });
 
-  // ── --skip-endpoints ─────────────────────────────────────────────────────────
+  // ── 8. --skip-endpoints ──────────────────────────────────────────────────────
 
-  it("sends skip_endpoints: true as channel param when --skip-endpoints is set", async () => {
+  it("sends skip_endpoints: true in the channel identifier when --skip-endpoints is set", async () => {
     const runPromise = run({
       skipEndpoints: true,
       cableUrl: server.url,
@@ -356,11 +359,90 @@ describe("frame listen", () => {
         m.command === "subscribe" &&
         m.identifier?.includes("WebhookListenChannel"),
     );
-    const identifier = JSON.parse(subMsg!.identifier!) as Record<
-      string,
-      unknown
-    >;
+    const identifier = JSON.parse(subMsg!.identifier!) as Record<string, unknown>;
     expect(identifier["skip_endpoints"]).toBe(true);
+
+    ac.abort();
+    await runPromise;
+  });
+
+  // ── 9. Live-key rejection ────────────────────────────────────────────────────
+
+  it("refuses to start when credential is a live key (devMode: false)", async () => {
+    mockGet.mockResolvedValueOnce({
+      apiKey: "sk_live_xyz",
+      merchant: "acct_001",
+      devMode: false,
+    });
+
+    await expect(
+      run({ cableUrl: server.url, signal: ac.signal }),
+    ).rejects.toThrow(/sandbox|dev|live/i);
+  });
+
+  // ── 10. 5xx local response ────────────────────────────────────────────────────
+
+  it("logs a 5xx local response and does not crash the listener", async () => {
+    mockFetch.mockResolvedValueOnce({ status: 500, text: () => Promise.resolve("Internal Server Error") });
+
+    const runPromise = run({
+      forwardTo: "http://localhost:4000/webhooks",
+      cableUrl: server.url,
+      signal: ac.signal,
+    });
+
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
+    );
+
+    server.broadcastEvent(
+      makeEvent({ event_type: "account.created" }) as Parameters<typeof server.broadcastEvent>[0],
+    );
+
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some(
+        (c) => String(c[0]).includes("account.created") && String(c[0]).includes("500"),
+      ),
+    );
+
+    const allOutput = stdoutSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(allOutput).toContain("500");
+
+    // Server should still be running (not crashed)
+    expect(runPromise).toBeDefined();
+
+    ac.abort();
+    await runPromise;
+  });
+
+  // ── 11. Unreachable forward URL ───────────────────────────────────────────────
+
+  it("handles unreachable forward URL with a clear log line and does not crash", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+
+    const runPromise = run({
+      forwardTo: "http://localhost:9999/webhooks",
+      cableUrl: server.url,
+      signal: ac.signal,
+    });
+
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
+    );
+
+    server.broadcastEvent(
+      makeEvent({ event_type: "account.created" }) as Parameters<typeof server.broadcastEvent>[0],
+    );
+
+    // Should log the event with status 0 (error)
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some(
+        (c) => String(c[0]).includes("account.created"),
+      ),
+    );
+
+    // The listener should still be alive
+    expect(runPromise).toBeDefined();
 
     ac.abort();
     await runPromise;
