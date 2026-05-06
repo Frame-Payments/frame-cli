@@ -26,12 +26,16 @@ Pay extra attention to test files that touch the relevant parts of the code.
 
 # EXECUTION
 
-If applicable, use RGR to complete the task.
+Use the project's TDD discipline. Load and follow the **`tdd`** skill at `.pi/skills/tdd/SKILL.md` — it documents the Frame-specific RSpec conventions (FactoryBot, dry-monads `Success`/`Failure`, AASM, VCR, RuboCop as part of GREEN, no stubbing your own collaborators).
 
-1. RED: write one test
-2. GREEN: write the implementation to pass that test
-3. REPEAT until done
-4. REFACTOR the code
+If the task is a hard bug or performance regression, also load the **`diagnose`** skill at `.pi/skills/diagnose/SKILL.md` and build a deterministic feedback loop (failing spec, curl script, etc.) before patching.
+
+Red-green-refactor loop:
+
+1. **RED**: write one failing test that captures the desired behavior
+2. **GREEN**: write the minimal implementation to pass that test
+3. **REPEAT** until the issue's acceptance criteria are met
+4. **REFACTOR** the code with tests passing
 
 # FEEDBACK LOOPS
 
