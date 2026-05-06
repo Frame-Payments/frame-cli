@@ -34,6 +34,15 @@ export interface CableSubscription {
   perform(action: string, payload?: Record<string, unknown>): void;
   /** Unsubscribe and stop receiving events. */
   unsubscribe(): void;
+  /**
+   * Update the channel params used for subsequent reconnects and perform calls.
+   * This is used by the listen orchestration after receiving a welcome message
+   * to inject `session_token` so reconnects carry it via the subscribe params.
+   *
+   * Calling this re-keys the subscriptions Map so incoming data messages
+   * (routed by identifier) are still dispatched to this subscription.
+   */
+  updateParams(params: Record<string, unknown>): void;
 }
 
 export interface CableClient {
@@ -345,8 +354,6 @@ export function createCableClient(
       channelName: string,
       params: Record<string, unknown> = {},
     ): CableSubscription {
-      const identifier = makeIdentifier(channelName, params);
-
       const state: SubscriptionState = {
         channelName,
         params,
@@ -355,7 +362,7 @@ export function createCableClient(
         disconnectedAt: null,
         confirmTimer: null,
       };
-      subscriptions.set(identifier, state);
+      subscriptions.set(makeIdentifier(channelName, params), state);
 
       // Subscribe immediately if the socket is already open
       if (ws?.readyState === WebSocket.OPEN) {
@@ -376,15 +383,36 @@ export function createCableClient(
           }
           rawSend({
             command: "message",
-            identifier,
+            identifier: makeIdentifier(state.channelName, state.params),
             data: JSON.stringify({ action, ...(payload ?? {}) }),
           });
         },
 
         unsubscribe() {
           clearConfirmTimer(state);
-          subscriptions.delete(identifier);
-          rawSend({ command: "unsubscribe", identifier });
+          // Remove all identifiers (current + any stale from prior updateParams calls)
+          // that point to this subscription state.
+          for (const [id, s] of subscriptions) {
+            if (s === state) subscriptions.delete(id);
+          }
+          rawSend({
+            command: "unsubscribe",
+            identifier: makeIdentifier(state.channelName, state.params),
+          });
+        },
+
+        updateParams(newParams: Record<string, unknown>) {
+          // Update params used by sendSubscribe (on reconnect) and perform.
+          // Also register the new identifier in the subscriptions Map so that
+          // messages arriving with the new identifier after the next reconnect
+          // are routed correctly.
+          // The OLD identifier is intentionally left in the Map: the server
+          // continues delivering messages with it until the client reconnects
+          // (which will happen automatically via cable-client's backoff).
+          // Stale entries are cleaned up in unsubscribe().
+          state.params = newParams;
+          const newId = makeIdentifier(state.channelName, newParams);
+          subscriptions.set(newId, state);
         },
       };
 

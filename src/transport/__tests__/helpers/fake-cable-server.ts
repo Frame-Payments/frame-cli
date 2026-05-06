@@ -122,20 +122,45 @@ export interface WebhookListenChannelPresetOptions {
    * Default: false (FRA-3537 relaxed the validation).
    */
   rejectEmptyEventCodes?: boolean;
+  /**
+   * How long (ms) a session is kept alive for reconnect/replay.
+   * If a subscribe arrives with a known `session_token` within this window,
+   * the server sends `{ replayed: true }` in the welcome and replays buffered
+   * events. Outside the window it provisions a fresh session.
+   * Default: 5 minutes. Pass 0 to always provision a fresh session (useful
+   * for testing the "outside replay window" code path).
+   */
+  replayWindowMs?: number;
+}
+
+/** One entry per welcome message sent to a subscribing client. */
+export interface WelcomeSent {
+  whsec: string;
+  sessionToken: string;
+  endpointId: string;
+  /** True when the server resumed an existing session (replayed: true in the welcome). */
+  replayed: boolean;
 }
 
 export interface WebhookListenFakeCableServer extends FakeCableServer {
-  /** The session secret (whsec) included in the welcome. */
+  /** The session secret (whsec) included in the initial (first) welcome. */
   readonly whsec: string;
-  /** The session token included in the welcome. */
+  /** The session token included in the initial (first) welcome. */
   readonly sessionToken: string;
-  /** The endpoint ID included in the welcome. */
+  /** The endpoint ID included in the initial (first) welcome. */
   readonly endpointId: string;
   /** Validated AckPayload objects received from the client, in arrival order. */
   readonly receivedAcks: AckPayload[];
   /**
+   * Every welcome message sent to a subscribing client, in order.
+   * Index 0 is the initial (fresh) session welcome; subsequent entries are
+   * either replayed (replayed: true) or fresh reconnect welcomes.
+   */
+  readonly welcomesSent: ReadonlyArray<WelcomeSent>;
+  /**
    * Broadcast a webhook event in the real wire shape (BroadcastEventMessage)
    * to all clients subscribed to Cli::WebhookListenChannel.
+   * Also buffers the event for replay to reconnecting clients within the replay window.
    */
   broadcastEvent(event: BroadcastEventMessage): void;
 }
@@ -447,10 +472,50 @@ export async function createWebhookListenFakeCableServer(
   presetOpts: WebhookListenChannelPresetOptions = {},
   baseOpts: Omit<FakeCableServerOptions, "_onSubscribed" | "_onMessage"> = {},
 ): Promise<WebhookListenFakeCableServer> {
-  const whsec = presetOpts.whsec ?? "whsec_cli_preset_test_00000000000000";
-  const endpointId = presetOpts.endpointId ?? "wep_test_001";
-  const sessionToken = presetOpts.sessionToken ?? "cs_test_001";
+  const initialWhsec = presetOpts.whsec ?? "whsec_cli_preset_test_00000000000000";
+  const initialEndpointId = presetOpts.endpointId ?? "wep_test_001";
+  const initialSessionToken = presetOpts.sessionToken ?? "cs_test_001";
+  const replayWindowMs = presetOpts.replayWindowMs ?? 5 * 60 * 1_000;
   const receivedAcks: AckPayload[] = [];
+  const welcomesSent: WelcomeSent[] = [];
+
+  // Per-session state: tracks the active session for replay and buffering.
+  interface PresetSession {
+    whsec: string;
+    sessionToken: string;
+    endpointId: string;
+    createdAt: number;
+    /** Events buffered for replay, in broadcast order. */
+    buffer: BroadcastEventMessage[];
+  }
+
+  const sessionsByToken = new Map<string, PresetSession>();
+  let sessionCounter = 0;
+
+  // The most recently created/resumed session (used by broadcastEvent).
+  let activeSession: PresetSession | null = null;
+  // The identifier of the most recently confirmed subscriber (for live delivery).
+  let activeIdentifier: string | null = null;
+
+  function makeNewSession(overrideToken?: string): PresetSession {
+    sessionCounter++;
+    // First session uses the configured/default values; subsequent sessions
+    // get incremented values so tests can detect the change.
+    const session: PresetSession = {
+      whsec: sessionCounter === 1
+        ? initialWhsec
+        : `whsec_cli_preset_reconnect_${String(sessionCounter).padStart(5, "0")}`,
+      sessionToken: overrideToken ??
+        (sessionCounter === 1
+          ? initialSessionToken
+          : `cs_reconnect_${String(sessionCounter).padStart(5, "0")}`),
+      endpointId: initialEndpointId,
+      createdAt: Date.now(),
+      buffer: [],
+    };
+    sessionsByToken.set(session.sessionToken, session);
+    return session;
+  }
 
   // Identifier that matches any Cli::WebhookListenChannel subscriber.
   // Since the channel params vary per-subscriber (event_codes, session_token,
@@ -462,10 +527,12 @@ export async function createWebhookListenFakeCableServer(
       // Check if this is a WebhookListenChannel subscribe
       let channelName: string | undefined;
       let eventCodes: unknown;
+      let incomingSessionToken: string | undefined;
       try {
         const parsed = JSON.parse(identifier) as Record<string, unknown>;
         channelName = parsed["channel"] as string | undefined;
         eventCodes = parsed["event_codes"];
+        incomingSessionToken = parsed["session_token"] as string | undefined;
       } catch {
         return;
       }
@@ -486,14 +553,56 @@ export async function createWebhookListenFakeCableServer(
         }
       }
 
-      // Auto-send real-shaped welcome
-      const welcome = {
+      // Determine whether this is a replay reconnect or a fresh session.
+      const existingSession = incomingSessionToken
+        ? sessionsByToken.get(incomingSessionToken)
+        : undefined;
+      const now = Date.now();
+      const isReplay =
+        existingSession != null &&
+        replayWindowMs > 0 &&
+        now - existingSession.createdAt < replayWindowMs;
+
+      let session: PresetSession;
+      let replayed: boolean;
+
+      if (isReplay && existingSession != null) {
+        // Resume the existing session: same whsec, same session_token.
+        session = existingSession;
+        replayed = true;
+      } else {
+        // Provision a fresh session.
+        session = makeNewSession();
+        replayed = false;
+      }
+
+      activeSession = session;
+      activeIdentifier = identifier;
+
+      // Record the welcome for test assertions.
+      welcomesSent.push({
+        whsec: session.whsec,
+        sessionToken: session.sessionToken,
+        endpointId: session.endpointId,
+        replayed,
+      });
+
+      // Send the welcome (with or without `replayed: true`).
+      const welcome: Record<string, unknown> = {
         type: "session",
-        whsec,
-        endpoint_id: endpointId,
-        session_token: sessionToken,
+        whsec: session.whsec,
+        endpoint_id: session.endpointId,
+        session_token: session.sessionToken,
       };
+      if (replayed) welcome["replayed"] = true;
       ws.send(JSON.stringify({ identifier, message: welcome }));
+
+      // On replay: drain the session buffer to the reconnected client.
+      if (replayed) {
+        for (const event of session.buffer) {
+          ws.send(JSON.stringify({ identifier, message: event }));
+        }
+      }
     },
     _onMessage(_identifier, data) {
       if (
@@ -516,25 +625,41 @@ export async function createWebhookListenFakeCableServer(
 
   return {
     ...base,
-    get whsec() { return whsec; },
-    get sessionToken() { return sessionToken; },
-    get endpointId() { return endpointId; },
+    get whsec() { return initialWhsec; },
+    get sessionToken() { return initialSessionToken; },
+    get endpointId() { return initialEndpointId; },
     get receivedAcks() { return receivedAcks; },
+    get welcomesSent() { return welcomesSent as ReadonlyArray<WelcomeSent>; },
     broadcastEvent(event: BroadcastEventMessage) {
-      // Send to all clients subscribed to Cli::WebhookListenChannel
-      // (any params variant) by scanning received subscribe messages.
-      const sentTo = new Set<string>();
-      for (const msg of base.received) {
-        if (msg.command !== "subscribe" || !msg.identifier) continue;
+      // Buffer the event in the active session for replay on reconnect.
+      activeSession?.buffer.push(event);
+
+      // Deliver to the currently active subscriber (if connected).
+      if (activeIdentifier != null) {
         try {
-          const parsed = JSON.parse(msg.identifier) as Record<string, unknown>;
-          if (parsed["channel"] !== WEBHOOK_LISTEN_CHANNEL) continue;
-          if (sentTo.has(msg.identifier)) continue;
-          sentTo.add(msg.identifier);
-          const { channel: _channel, ...channelParams } = parsed;
-          base.send(WEBHOOK_LISTEN_CHANNEL, channelParams, event);
+          const parsed = JSON.parse(activeIdentifier) as Record<string, unknown>;
+          if (parsed["channel"] === WEBHOOK_LISTEN_CHANNEL) {
+            const { channel: _channel, ...channelParams } = parsed;
+            base.send(WEBHOOK_LISTEN_CHANNEL, channelParams, event);
+          }
         } catch {
-          // skip malformed identifiers
+          // skip malformed identifier
+        }
+      } else {
+        // Fall back to scanning all subscribe messages (original behaviour).
+        const sentTo = new Set<string>();
+        for (const msg of base.received) {
+          if (msg.command !== "subscribe" || !msg.identifier) continue;
+          try {
+            const parsed = JSON.parse(msg.identifier) as Record<string, unknown>;
+            if (parsed["channel"] !== WEBHOOK_LISTEN_CHANNEL) continue;
+            if (sentTo.has(msg.identifier)) continue;
+            sentTo.add(msg.identifier);
+            const { channel: _channel, ...channelParams } = parsed;
+            base.send(WEBHOOK_LISTEN_CHANNEL, channelParams, event);
+          } catch {
+            // skip malformed identifiers
+          }
         }
       }
     },

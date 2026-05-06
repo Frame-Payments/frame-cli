@@ -449,6 +449,113 @@ describe("frame listen", () => {
     await runPromise;
   });
 
+  // ── 12. Reconnect within replay window ──────────────────────────────────────
+
+  it("reconnect within replay window: does not reprint Session started and drains buffered events", async () => {
+    // Use a very long replay window so the reconnect is always within it
+    await server.close();
+    server = await createWebhookListenFakeCableServer(
+      { replayWindowMs: 60_000 },
+      { expectedApiKey: "sk_test_xyz" },
+    );
+
+    mockFetch.mockResolvedValue({ status: 200, text: () => Promise.resolve("ok") });
+
+    const runPromise = run({
+      forwardTo: "http://localhost:4000/webhooks",
+      cableUrl: server.url,
+      signal: ac.signal,
+    });
+
+    // Wait for initial welcome
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
+    );
+
+    // Count how many times "Session started" has been printed so far
+    const sessionStartedBefore = stdoutSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("Session started"),
+    ).length;
+    expect(sessionStartedBefore).toBe(1);
+
+    // Force disconnect — triggers cable-client reconnect
+    server.forceDisconnect();
+
+    // Wait for the client to reconnect (second subscribe)
+    await waitFor(() => {
+      const subs = server.received.filter((m) => m.command === "subscribe");
+      return subs.length >= 2;
+    }, 4_000);
+
+    // The second subscribe should include session_token in the identifier
+    const subs = server.received.filter((m) => m.command === "subscribe");
+    const reconnectSub = subs.at(-1)!;
+    const reconnectParams = JSON.parse(reconnectSub.identifier!) as Record<string, unknown>;
+    expect(reconnectParams["session_token"]).toBe(server.sessionToken);
+
+    // Wait for the replay welcome to arrive (server.welcomesSent should have 2 entries)
+    await waitFor(() => server.welcomesSent.length >= 2, 3_000);
+    expect(server.welcomesSent[1]!.replayed).toBe(true);
+    expect(server.welcomesSent[1]!.whsec).toBe(server.whsec);
+
+    // "Session started" must NOT have been printed a second time
+    const sessionStartedAfter = stdoutSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("Session started"),
+    ).length;
+    expect(sessionStartedAfter).toBe(1);
+
+    ac.abort();
+    await runPromise;
+  });
+
+  // ── 13. Reconnect outside replay window ──────────────────────────────────────
+
+  it("reconnect outside replay window: prints fresh Session started with new whsec", async () => {
+    // Use a 0ms replay window so the first reconnect is always outside it
+    await server.close();
+    server = await createWebhookListenFakeCableServer(
+      { replayWindowMs: 0 },
+      { expectedApiKey: "sk_test_xyz" },
+    );
+
+    const runPromise = run({
+      cableUrl: server.url,
+      signal: ac.signal,
+    });
+
+    // Wait for initial welcome
+    await waitFor(() =>
+      stdoutSpy.mock.calls.some((c) => String(c[0]).includes(server.whsec)),
+    );
+
+    const firstWhsec = server.whsec;
+
+    // Force disconnect
+    server.forceDisconnect();
+
+    // Wait for the client to reconnect and server to send fresh welcome
+    await waitFor(() => server.welcomesSent.length >= 2, 4_000);
+
+    // The second welcome should NOT be replayed and should have a different whsec
+    expect(server.welcomesSent[1]!.replayed).toBe(false);
+    expect(server.welcomesSent[1]!.whsec).not.toBe(firstWhsec);
+
+    // A second "Session started" line must have been printed
+    await waitFor(() =>
+      stdoutSpy.mock.calls.filter((c) =>
+        String(c[0]).includes("Session started"),
+      ).length >= 2,
+      3_000,
+    );
+
+    // The new whsec must appear in the output
+    const allOutput = stdoutSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(allOutput).toContain(server.welcomesSent[1]!.whsec);
+
+    ac.abort();
+    await runPromise;
+  });
+
   // ── Not logged in ────────────────────────────────────────────────────────────
 
   it("throws when no credential is stored", async () => {

@@ -115,34 +115,50 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
 
       let session: SessionState | null = null;
 
-      const subscription = client
-        .subscribe(CHANNEL_NAME, channelParams)
-        // Welcome message: type = "session" (from the ActionCable channel)
-        .on("session", (raw) => {
-          let welcome: WelcomeMessage;
-          try {
-            welcome = parseWelcome(raw);
-          } catch (err) {
-            process.stderr.write(
-              `  ✗ Welcome parse error: ${(err as Error).message}\n`,
-            );
-            return;
-          }
-          session = {
-            whsec: welcome.whsec,
-            endpointId: welcome.endpoint_id,
-            sessionToken: welcome.session_token,
-          };
-          process.stdout.write(
-            `\n  ✓ Session started\n` +
-              `    Webhook secret: ${welcome.whsec}\n` +
-              `    Paste this into your local .env as FRAME_WEBHOOK_SECRET.\n\n`,
+      // Subscribe and hold a reference so the welcome handler can call updateParams.
+      const subscription = client.subscribe(CHANNEL_NAME, channelParams);
+
+      // Welcome message: type = "session" (from the ActionCable channel)
+      subscription.on("session", (raw) => {
+        let welcome: WelcomeMessage;
+        try {
+          welcome = parseWelcome(raw);
+        } catch (err) {
+          process.stderr.write(
+            `  ✗ Welcome parse error: ${(err as Error).message}\n`,
           );
-        })
-        // Broadcast events have no `type` field → cable client defaults to "message"
-        .on("message", (raw) => {
-          void handleEvent(raw);
+          return;
+        }
+
+        session = {
+          whsec: welcome.whsec,
+          endpointId: welcome.endpoint_id,
+          sessionToken: welcome.session_token,
+        };
+
+        // Update the subscription params so the next reconnect carries
+        // session_token, enabling the server to resume the session within
+        // its replay window (FRA-3540).
+        subscription.updateParams({
+          ...channelParams,
+          session_token: welcome.session_token,
         });
+
+        // Replayed welcome: the server resumed an existing session — the
+        // whsec is unchanged so the merchant need not update their .env.
+        if (welcome.replayed) return;
+
+        process.stdout.write(
+          `\n  ✓ Session started\n` +
+            `    Webhook secret: ${welcome.whsec}\n` +
+            `    Paste this into your local .env as FRAME_WEBHOOK_SECRET.\n\n`,
+        );
+      });
+
+      // Broadcast events have no `type` field → cable client defaults to "message"
+      subscription.on("message", (raw) => {
+        void handleEvent(raw);
+      });
 
       async function handleEvent(raw: unknown): Promise<void> {
         let event: BroadcastEventMessage;

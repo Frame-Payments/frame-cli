@@ -516,4 +516,86 @@ describe("cable-client", () => {
       expect(warnings).toHaveLength(0);
     });
   });
+
+  // ── 8. updateParams ─────────────────────────────────────────────────────────
+
+  describe("updateParams", () => {
+    it("causes subsequent perform calls to use the new identifier", async () => {
+      client = createCableClient(server.url, { initialDelay: 50 });
+
+      const sub = client.subscribe("ChatChannel", { room: "lobby" });
+      await waitFor(() => server.received.some((m) => m.command === "subscribe"));
+      await sleep(20);
+
+      // Update the params to include a session_token (as listen.ts does after welcome)
+      sub.updateParams({ room: "lobby", session_token: "tok_abc" });
+
+      sub.perform("say", { text: "hi" });
+
+      await waitFor(() => server.received.some((m) => m.command === "message"));
+      const msg = server.received.find((m) => m.command === "message");
+      const expectedId = JSON.stringify({ channel: "ChatChannel", room: "lobby", session_token: "tok_abc" });
+      expect(msg?.identifier).toBe(expectedId);
+    });
+
+    it("causes the reconnect subscribe to use the new params", async () => {
+      client = createCableClient(server.url, { initialDelay: 50 });
+
+      const sub = client.subscribe("ChatChannel", { room: "lobby" });
+      await waitFor(() => server.received.some((m) => m.command === "subscribe"));
+      await sleep(20);
+
+      // Update params before the disconnect
+      sub.updateParams({ room: "lobby", session_token: "tok_reconnect" });
+
+      const subsBefore = server.received.filter((m) => m.command === "subscribe").length;
+
+      server.forceDisconnect();
+
+      await waitFor(
+        () => server.received.filter((m) => m.command === "subscribe").length > subsBefore,
+        3_000,
+      );
+
+      // The re-subscribe should use the updated identifier (with session_token)
+      const reconnectSub = server.received
+        .filter((m) => m.command === "subscribe")
+        .at(-1)!;
+      const parsed = JSON.parse(reconnectSub.identifier!) as Record<string, unknown>;
+      expect(parsed["session_token"]).toBe("tok_reconnect");
+    });
+
+    it("routes incoming messages to the subscription after params update + reconnect", async () => {
+      client = createCableClient(server.url, { initialDelay: 50 });
+
+      const received: unknown[] = [];
+      const sub = client
+        .subscribe("ChatChannel", { room: "lobby" })
+        .on("message", (d) => received.push(d));
+      await waitFor(() => server.received.some((m) => m.command === "subscribe"));
+      await sleep(20);
+
+      // Update params with session_token; this will be sent on the next reconnect
+      sub.updateParams({ room: "lobby", session_token: "tok_route" });
+
+      const subsBefore = server.received.filter((m) => m.command === "subscribe").length;
+
+      // Force a disconnect so the cable-client reconnects with the new params
+      server.forceDisconnect();
+
+      // Wait for the re-subscribe with the new identifier
+      await waitFor(
+        () => server.received.filter((m) => m.command === "subscribe").length > subsBefore,
+        3_000,
+      );
+      await sleep(20); // give confirm_subscription time to arrive
+
+      // Now send via the new identifier — should reach our handler
+      server.send("ChatChannel", { room: "lobby", session_token: "tok_route" }, { type: "message", text: "routed" });
+
+      await waitFor(() => received.length > 0, 2_000);
+      expect(received[0]).toMatchObject({ text: "routed" });
+    });
+  });
 });
+
