@@ -9,7 +9,7 @@ Simulate payments, stream real-time logs, and forward webhook events to a local 
 ## Install
 
 ```bash
-npm i -g @framepayments/cli
+npm i -g @frame-payments/cli
 ```
 
 **Requirements:** Node.js ≥ 20
@@ -17,7 +17,7 @@ npm i -g @framepayments/cli
 No global install? Use the `npx` escape hatch:
 
 ```bash
-npx @framepayments/cli <command>
+npx @frame-payments/cli <command>
 ```
 
 ---

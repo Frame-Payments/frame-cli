@@ -1,5 +1,5 @@
 {
-  "name": "@framepayments/cli",
+  "name": "@frame-payments/cli",
   "version": "0.0.0",
   "description": "Frame CLI — sandbox developer tooling for the Frame API",
   "main": "index.js",
@@ -14,7 +14,11 @@
     "lint": "eslint src",
     "format": "prettier --write src",
     "typecheck": "tsc --noEmit",
-    "sandcastle": "npx tsx .sandcastle/main.ts"
+    "sandcastle": "npx tsx .sandcastle/main.ts",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",

@@ -19,11 +19,11 @@ describe("README.md", () => {
 
   describe("Install section", () => {
     it("includes npm global install command", () => {
-      expect(readme).toContain("npm i -g @framepayments/cli");
+      expect(readme).toContain("npm i -g @frame-payments/cli");
     });
 
     it("includes npx escape hatch", () => {
-      expect(readme).toContain("npx @framepayments/cli");
+      expect(readme).toContain("npx @frame-payments/cli");
     });
 
     it("mentions Node.js >= 20 requirement", () => {

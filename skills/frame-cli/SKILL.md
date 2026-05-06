@@ -11,7 +11,7 @@ description: >
   frame whoami, frame listen, frame logs tail, frame events resend <evt_id>,
   frame open [page].
 compatibility: >
-  Requires `frame` on PATH (npm install -g @framepayments/cli). Reads/writes OS
+  Requires `frame` on PATH (npm install -g @frame-payments/cli). Reads/writes OS
   keychain (keytar) for credential storage — may fail in headless containers
   without a keyring daemon. Requires outbound network access to the Frame sandbox
   API (api.framepayments.com).
@@ -40,7 +40,7 @@ sandbox.
 
 ```bash
 # Install
-npm install -g @framepayments/cli   # or: npx @framepayments/cli <cmd>
+npm install -g @frame-payments/cli   # or: npx @frame-payments/cli <cmd>
 
 # Authenticate (first-run step — stores token in OS keychain)
 frame login
