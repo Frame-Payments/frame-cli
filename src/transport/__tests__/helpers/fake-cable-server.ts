@@ -501,14 +501,11 @@ export async function createWebhookListenFakeCableServer(
     sessionCounter++;
     // First session uses the configured/default values; subsequent sessions
     // get incremented values so tests can detect the change.
+    const isFirst = sessionCounter === 1;
+    const paddedCount = String(sessionCounter).padStart(5, "0");
     const session: PresetSession = {
-      whsec: sessionCounter === 1
-        ? initialWhsec
-        : `whsec_cli_preset_reconnect_${String(sessionCounter).padStart(5, "0")}`,
-      sessionToken: overrideToken ??
-        (sessionCounter === 1
-          ? initialSessionToken
-          : `cs_reconnect_${String(sessionCounter).padStart(5, "0")}`),
+      whsec: isFirst ? initialWhsec : `whsec_cli_preset_reconnect_${paddedCount}`,
+      sessionToken: overrideToken ?? (isFirst ? initialSessionToken : `cs_reconnect_${paddedCount}`),
       endpointId: initialEndpointId,
       createdAt: Date.now(),
       buffer: [],
@@ -566,7 +563,7 @@ export async function createWebhookListenFakeCableServer(
       let session: PresetSession;
       let replayed: boolean;
 
-      if (isReplay && existingSession != null) {
+      if (isReplay) {
         // Resume the existing session: same whsec, same session_token.
         session = existingSession;
         replayed = true;

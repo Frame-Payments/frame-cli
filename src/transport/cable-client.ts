@@ -39,8 +39,10 @@ export interface CableSubscription {
    * This is used by the listen orchestration after receiving a welcome message
    * to inject `session_token` so reconnects carry it via the subscribe params.
    *
-   * Calling this re-keys the subscriptions Map so incoming data messages
-   * (routed by identifier) are still dispatched to this subscription.
+   * Registers the new identifier in the subscriptions Map so messages arriving
+   * under the new identifier are routed to this subscription. The old identifier
+   * is kept until unsubscribe() so the server can continue delivering messages
+   * under it until the client reconnects with the updated params.
    */
   updateParams(params: Record<string, unknown>): void;
 }
