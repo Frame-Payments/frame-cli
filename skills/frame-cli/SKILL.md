@@ -1,16 +1,15 @@
 ---
 name: frame-cli
 description: >
-  Drive the Frame sandbox CLI to test webhook integrations, simulate payment
-  events, and debug server-side logic — without touching live mode. Use this
-  skill when the user wants to trigger Frame sandbox events (transfers, refunds,
-  invoices, accounts, capabilities), tail sandbox logs, listen for webhooks,
+  Drive the Frame sandbox CLI to test webhook integrations and debug
+  server-side logic — without touching live mode. Use this skill when the user
+  wants to tail sandbox logs, listen for webhooks, resend past sandbox events,
   authenticate the CLI, or open the Frame dashboard. Also activates for legacy
   Frame vocabulary: customer, charge_intent, payout, charge — all map to
   canonical surfaces (accounts, transfers, refunds). Sandbox-only: live
   credentials are rejected at runtime. Core commands: frame login, frame logout,
-  frame whoami, frame listen, frame logs tail, frame trigger <event_code>,
-  frame events resend <evt_id>, frame open [page].
+  frame whoami, frame listen, frame logs tail, frame events resend <evt_id>,
+  frame open [page].
 compatibility: >
   Requires `frame` on PATH (npm install -g @framepayments/cli). Reads/writes OS
   keychain (keytar) for credential storage — may fail in headless containers
@@ -22,9 +21,15 @@ allowed-tools: Bash(frame:*)
 ## What this is
 
 The Frame CLI (`frame`) is a sandbox-only developer tool for driving the Frame
-API. It lets you authenticate, forward webhook events to a local server, trigger
-canonical payment-lifecycle events, tail structured logs, resend past events, and
-open the Frame dashboard — all against the sandbox environment.
+API. It lets you authenticate, forward webhook events to a local server, tail
+structured logs, resend past events, and open the Frame dashboard — all against
+the sandbox environment.
+
+**v1 scope note.** The CLI does not currently include a command to provoke
+Frame-initiated state transitions (account restriction, capability decisions,
+processor-driven settlement). Drive sandbox traffic through your normal API/SDK
+calls or the dashboard; the listener and log stream surface the resulting
+events. A scenario-shaped sandbox simulation API is on the roadmap.
 
 **Sandbox-only.** Live API keys are rejected. Every operation targets the Frame
 sandbox.
@@ -59,7 +64,6 @@ or `dbus-launch`).
 | `frame whoami` | Print the authenticated identity |
 | `frame listen` | Forward sandbox webhooks to a local server |
 | `frame logs tail` | Stream sandbox log entries in real time |
-| `frame trigger <event_code>` | Fire a canonical sandbox event via API fixture |
 | `frame events resend <evt_id>` | Resend a past sandbox event by ID |
 | `frame open [page]` | Open a Frame dashboard page in the browser |
 
@@ -102,14 +106,6 @@ frame logs tail --json | jq '.url'
 **This command blocks until Ctrl-C.** Background it the same way as
 `frame listen` when combining with other commands.
 
-### `frame trigger <event_code>`
-Runs a multi-step API fixture to produce a canonical sandbox event. See
-"Triggering events" below for the full list of valid `<event_code>` values.
-
-```bash
-frame trigger transfer.completed
-```
-
 ### `frame events resend <evt_id>`
 Resends a past sandbox event to your registered webhook endpoints. Use this to
 reproduce a flaky delivery without re-triggering the full fixture sequence.
@@ -124,53 +120,11 @@ open the dashboard home.
 
 ---
 
-## Triggering events
-
-### Canonical event codes (16 total)
-
-These are the only valid values for `frame trigger <event_code>`:
-
-```
-account.created
-account.updated
-account.restricted
-account.unrestricted
-capability.requested
-capability.approved
-capability.denied
-capability.disabled
-transfer.created
-transfer.completed
-transfer.cancelled
-transfer.updated
-refund.created
-refund.completed
-invoice.created
-invoice.paid
-```
-
-### Deprecated event codes → canonical replacement
-
-These codes are **rejected** by `frame trigger`. Use the canonical replacement:
-
-| Deprecated code | Use instead |
-|---|---|
-| `customer.created` | `frame accounts create` → `account.created` |
-| `customer.updated` | `frame accounts update` → `account.updated` |
-| `customer.deleted` | `frame accounts update` → `account.updated` |
-| `charge_intent.created` | `frame transfers create` → `transfer.created` |
-| `charge_intent.completed` | `frame trigger transfer.completed` |
-| `charge_intent.cancelled` | `frame trigger transfer.cancelled` |
-| `payout.created` | `frame transfers create` → `transfer.created` |
-| `charge.created` | `frame transfers create` → `transfer.created` |
-
----
-
 ## Workflows
 
 ### 1. Verify a webhook integration locally
 
-End-to-end: authenticate → listen in background → trigger an event → kill listener.
+End-to-end: authenticate → listen in background → drive sandbox traffic via API/dashboard → kill listener.
 
 ```bash
 # 1. Authenticate (once per environment)
@@ -180,14 +134,14 @@ frame login
 frame listen --forward-to http://localhost:3000/webhooks &
 LISTEN_PID=$!
 
-# 3. Trigger a transfer.completed event
-frame trigger transfer.completed
+# 3. Drive sandbox traffic through your normal API/SDK calls or the dashboard.
+#    Webhooks flow to your local server through the listener above.
 
 # 4. Stop the listener
 kill $LISTEN_PID
 ```
 
-Your local server should receive the webhook payload within a few seconds.
+Your local server should receive webhook payloads within a few seconds.
 Check `frame logs tail` if nothing arrives.
 
 ### 2. Reproduce a flaky webhook delivery
@@ -233,7 +187,6 @@ Every command has a `--help` flag:
 frame --help
 frame listen --help
 frame logs tail --help
-frame trigger --help    # lists all 16 canonical event codes
 frame open --help       # lists valid page arguments
 ```
 
@@ -253,11 +206,6 @@ frame open --help       # lists valid page arguments
 - **`mode: sandbox` banner.** Every command prints a `mode: sandbox` banner to
   stdout. If you are parsing `frame` output programmatically, add `--json` where
   supported and filter out banner lines, or redirect stderr separately.
-
-- **Bounded fixture set.** `frame trigger` only accepts the 16 canonical event
-  codes listed above. It does not accept arbitrary event names. If you need an
-  event not in the list, check `frame trigger --help` for the current list —
-  the CLI and the skill are kept in sync.
 
 - **Blocking commands must be backgrounded.** `frame listen` and `frame logs tail`
   block the terminal until Ctrl-C. If you invoke them without `&` and then try

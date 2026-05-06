@@ -11,7 +11,7 @@
  *   3. Hardcoded production default
  *
  * Whatever resolves is persisted alongside the API key so subsequent
- * commands (`whoami`, `trigger`, `listen`, …) automatically target the
+ * commands (`whoami`, `listen`, …) automatically target the
  * same host the credential was issued against.
  */
 

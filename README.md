@@ -32,11 +32,11 @@ frame login
 #    Run in the background so your terminal stays free
 frame listen --forward-to http://localhost:3000/webhooks &
 
-# 3. Trigger a sandbox event
-frame trigger transfer.completed
+# 3. Drive sandbox traffic via your normal API/SDK calls or the dashboard
+#    — events flow to your local server through the listener above.
 ```
 
-Your local server receives a realistic `transfer.completed` payload within seconds.
+Your local server receives webhook payloads within seconds of the events being produced in sandbox.
 
 ---
 
@@ -49,7 +49,6 @@ Your local server receives a realistic `transfer.completed` payload within secon
 | [`frame whoami`](https://github.com/Frame-Payments/frame-cli#readme) | Show the currently authenticated merchant |
 | [`frame logs tail`](https://github.com/Frame-Payments/frame-cli#readme) | Stream real-time sandbox API request logs |
 | [`frame listen`](https://github.com/Frame-Payments/frame-cli#readme) | Forward sandbox webhook events to a local URL |
-| [`frame trigger <event_code>`](https://github.com/Frame-Payments/frame-cli#readme) | Trigger a sandbox event using bundled fixtures |
 | [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
 | [`frame open [page]`](https://github.com/Frame-Payments/frame-cli#readme) | Open a dashboard page in the default browser |
 
@@ -68,7 +67,7 @@ npx skills add Frame-Payments/frame-cli
 Or browse the skill directly at:
 [skills.sh/Frame-Payments/frame-cli/frame-cli](https://skills.sh/Frame-Payments/frame-cli/frame-cli)
 
-The skill documents all 9 commands, the 16 canonical trigger event codes, three end-to-end workflows, and common gotchas (blocking commands, OS keychain in headless containers, deprecated vocabulary redirects).
+The skill documents all 8 commands, end-to-end workflows, and common gotchas (blocking commands, OS keychain in headless containers, deprecated vocabulary redirects).
 
 ---
 
@@ -90,7 +89,7 @@ Start with [`CONTEXT.md`](./CONTEXT.md) for the canonical-vs-deprecated vocabula
 2. **`--help` example** — at least one `Examples:` block via `.addHelpText("after", …)`
 3. **`skills/frame-cli/SKILL.md` entry** — document the command in the Per-command details section
 
-A CI test validates the skill frontmatter. A separate CI test asserts the canonical event array in `src/commands/trigger.ts` stays in sync with the bundled YAML fixtures in `fixtures/`.
+A CI test validates the skill frontmatter.
 
 ---
 

@@ -41,9 +41,6 @@ describe("README.md", () => {
       expect(readme).toContain("&");
     });
 
-    it("uses frame trigger transfer.completed", () => {
-      expect(readme).toContain("frame trigger transfer.completed");
-    });
   });
 
   describe("Command table", () => {
@@ -53,7 +50,6 @@ describe("README.md", () => {
       "frame whoami",
       "frame logs tail",
       "frame listen",
-      "frame trigger",
       "frame events resend",
       "frame open",
     ];

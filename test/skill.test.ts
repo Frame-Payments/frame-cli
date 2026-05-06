@@ -1,6 +1,6 @@
 /**
  * Validates skills/frame-cli/SKILL.md frontmatter against the agentskills.io spec.
- * Catches regressions before they silently break agent-trigger behavior.
+ * Catches regressions before they silently break agent skill discovery.
  */
 
 import { readFileSync } from "node:fs";
@@ -45,14 +45,13 @@ describe("skills/frame-cli/SKILL.md", () => {
     expect(fm["allowed-tools"]).toBeDefined();
   });
 
-  it("body contains all 8 documented commands (omits placeholder)", () => {
+  it("body contains all 7 documented commands (omits placeholder)", () => {
     const commands = [
       "frame login",
       "frame logout",
       "frame whoami",
       "frame listen",
       "frame logs tail",
-      "frame trigger",
       "frame events resend",
       "frame open",
     ];
@@ -62,45 +61,12 @@ describe("skills/frame-cli/SKILL.md", () => {
     expect(body, "body should NOT mention 'placeholder'").not.toContain(
       "placeholder"
     );
+    expect(body, "body should NOT mention 'frame trigger' (removed in v1)").not.toContain(
+      "frame trigger"
+    );
   });
 
-  it("body contains all 16 canonical trigger event codes", () => {
-    const codes = [
-      "account.created",
-      "account.updated",
-      "account.restricted",
-      "account.unrestricted",
-      "capability.requested",
-      "capability.approved",
-      "capability.denied",
-      "capability.disabled",
-      "transfer.created",
-      "transfer.completed",
-      "transfer.cancelled",
-      "transfer.updated",
-      "refund.created",
-      "refund.completed",
-      "invoice.created",
-      "invoice.paid",
-    ];
-    for (const code of codes) {
-      expect(body, `body should contain event code "${code}"`).toContain(code);
-    }
-  });
 
-  it("body contains the deprecated→canonical event map", () => {
-    const deprecated = [
-      "customer.created",
-      "customer.updated",
-      "charge_intent.created",
-      "payout.created",
-    ];
-    for (const code of deprecated) {
-      expect(body, `body should mention deprecated code "${code}"`).toContain(
-        code
-      );
-    }
-  });
 
   it("body contains a Gotchas section", () => {
     expect(body).toContain("Gotchas");

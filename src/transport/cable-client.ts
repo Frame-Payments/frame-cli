@@ -115,7 +115,25 @@ function deriveHttpOrigin(wsUrl: string): string {
 
 interface SubscriptionState {
   channelName: string;
+  /**
+   * The latest params, used to build the `subscribe` identifier on the
+   * NEXT reconnect. Mutated by `updateParams` (e.g. listen.ts folding in
+   * `session_token` after the server's welcome).
+   */
   params: Record<string, unknown>;
+  /**
+   * The identifier under which the server is currently subscribing this
+   * state on the live connection. Set by `sendSubscribe` and used by
+   * `perform` and `unsubscribe` so the server can route them — the server
+   * does not know about identifier changes from `updateParams` until the
+   * next reconnect re-subscribes with the new params. Without this split,
+   * `perform("ack", ...)` after `updateParams` would build an identifier
+   * the server has never seen and Rails replies
+   * `RuntimeError - Unable to find subscription with identifier: ...`,
+   * silently swallowing the ack and stalling `Webhook::MessageAttempt`
+   * recording.
+   */
+  serverIdentifier: string | null;
   handlers: Map<string, Array<(data: unknown) => void>>;
   /** Timestamp (epoch ms) of the most-recently received data message. */
   lastReceivedAt: number | null;
@@ -188,6 +206,7 @@ export function createCableClient(
 
   function sendSubscribe(state: SubscriptionState): void {
     const identifier = makeIdentifier(state.channelName, state.params);
+    state.serverIdentifier = identifier;
     const now = Date.now();
 
     // Include last_received_at only when reconnecting within the replay window.
@@ -370,6 +389,7 @@ export function createCableClient(
       const state: SubscriptionState = {
         channelName,
         params,
+        serverIdentifier: null,
         handlers: new Map(),
         lastReceivedAt: null,
         disconnectedAt: null,
@@ -394,9 +414,15 @@ export function createCableClient(
           if (ws?.readyState !== WebSocket.OPEN) {
             throw new Error("CableClient: not connected");
           }
+          // Use the identifier the server currently knows about on this
+          // connection — NOT the latest params, which may include changes
+          // (e.g. session_token from welcome) that haven't been re-sent
+          // via subscribe yet.
+          const identifier =
+            state.serverIdentifier ?? makeIdentifier(state.channelName, state.params);
           rawSend({
             command: "message",
-            identifier: makeIdentifier(state.channelName, state.params),
+            identifier,
             data: JSON.stringify({ action, ...(payload ?? {}) }),
           });
         },
@@ -410,7 +436,8 @@ export function createCableClient(
           }
           rawSend({
             command: "unsubscribe",
-            identifier: makeIdentifier(state.channelName, state.params),
+            identifier:
+              state.serverIdentifier ?? makeIdentifier(state.channelName, state.params),
           });
         },
 

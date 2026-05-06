@@ -3,7 +3,7 @@
  *
  * This module is intentionally thin; its only job is to show that the
  * `runWithBanner` wrapper + dynamic-import pathway works end-to-end.
- * Real commands (login, listen, trigger …) will follow the same shape.
+ * Real commands (login, listen, …) will follow the same shape.
  */
 
 import { runWithBanner, type BannerContext } from "../fmt/banner.js";

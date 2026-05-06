@@ -520,20 +520,56 @@ describe("cable-client", () => {
   // ── 8. updateParams ─────────────────────────────────────────────────────────
 
   describe("updateParams", () => {
-    it("causes subsequent perform calls to use the new identifier", async () => {
+    it("perform after updateParams uses the identifier the server currently knows about (not the future-reconnect identifier)", async () => {
+      // Regression: pre-fix, perform always built its identifier from
+      // state.params, the latest values. After listen.ts called
+      // updateParams to fold session_token into the params (post-welcome),
+      // the next subscription.perform("ack", ...) carried an identifier the
+      // server had never seen on this connection. Rails responded with
+      // `RuntimeError - Unable to find subscription with identifier: ...`
+      // and the ack was silently dropped, leaving every Webhook::Message in
+      // status: pending and zero MessageAttempt rows recorded.
       client = createCableClient(server.url, { initialDelay: 50 });
 
       const sub = client.subscribe("ChatChannel", { room: "lobby" });
       await waitFor(() => server.received.some((m) => m.command === "subscribe"));
       await sleep(20);
 
-      // Update the params to include a session_token (as listen.ts does after welcome)
       sub.updateParams({ room: "lobby", session_token: "tok_abc" });
 
       sub.perform("say", { text: "hi" });
 
       await waitFor(() => server.received.some((m) => m.command === "message"));
       const msg = server.received.find((m) => m.command === "message");
+      // The original (server-known) identifier, NOT the post-updateParams one.
+      const originalId = JSON.stringify({ channel: "ChatChannel", room: "lobby" });
+      expect(msg?.identifier).toBe(originalId);
+    });
+
+    it("perform AFTER reconnect uses the new identifier (because the server now knows about it)", async () => {
+      client = createCableClient(server.url, { initialDelay: 50 });
+
+      const sub = client.subscribe("ChatChannel", { room: "lobby" });
+      await waitFor(() => server.received.some((m) => m.command === "subscribe"));
+      await sleep(20);
+
+      sub.updateParams({ room: "lobby", session_token: "tok_abc" });
+
+      const subsBefore = server.received.filter((m) => m.command === "subscribe").length;
+      server.forceDisconnect();
+      await waitFor(
+        () => server.received.filter((m) => m.command === "subscribe").length > subsBefore,
+        3_000,
+      );
+      await sleep(50);
+
+      const messagesBefore = server.received.filter((m) => m.command === "message").length;
+      sub.perform("say", { text: "hi" });
+      await waitFor(
+        () => server.received.filter((m) => m.command === "message").length > messagesBefore,
+      );
+
+      const msg = server.received.filter((m) => m.command === "message").at(-1);
       const expectedId = JSON.stringify({ channel: "ChatChannel", room: "lobby", session_token: "tok_abc" });
       expect(msg?.identifier).toBe(expectedId);
     });

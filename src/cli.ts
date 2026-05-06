@@ -13,7 +13,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { checkForUpdates } from "./update-check/update-check.js";
-import { SUPPORTED_EVENTS, DEPRECATED_EVENTS } from "./commands/trigger-events.js";
 import { formatError } from "./fmt/error.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,7 +54,7 @@ More information:
 // ---------------------------------------------------------------------------
 
 // Placeholder — demonstrates the lazy-import + runWithBanner pathway.
-// Replace with real commands (login, listen, trigger …) as they are built.
+// Replace with real commands (login, listen, …) as they are built.
 program
   .command("placeholder")
   .description("Scaffold placeholder — demonstrates the lazy-import pathway")
@@ -192,30 +191,6 @@ Examples:
       ...(opts.events !== undefined && { events: opts.events.split(",").map((e) => e.trim()) }),
       ...(opts.skipEndpoints !== undefined && { skipEndpoints: opts.skipEndpoints }),
     });
-  });
-
-const triggerHelpText = [
-  "",
-  "Supported events:",
-  ...SUPPORTED_EVENTS.map((e) => `  ${e}`),
-  "",
-  "Deprecated event codes (and their canonical replacements):",
-  ...Object.entries(DEPRECATED_EVENTS).map(([dep, hint]) => `  ${dep}  →  ${hint}`),
-  "",
-  "Examples:",
-  "  frame trigger transfer.completed",
-  "  frame trigger account.created",
-  "  frame trigger invoice.paid",
-  "",
-].join("\n");
-
-program
-  .command("trigger <event_code>")
-  .description("Trigger a sandbox event using bundled fixtures")
-  .addHelpText("after", triggerHelpText)
-  .action(async (eventCode: string) => {
-    const { run } = await import("./commands/trigger.js");
-    await run(eventCode);
   });
 
 // `frame events resend <evt_id>`
