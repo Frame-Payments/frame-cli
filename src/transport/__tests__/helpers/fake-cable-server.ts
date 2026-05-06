@@ -531,9 +531,8 @@ export async function createWebhookListenFakeCableServer(
           if (parsed["channel"] !== WEBHOOK_LISTEN_CHANNEL) continue;
           if (sentTo.has(msg.identifier)) continue;
           sentTo.add(msg.identifier);
-          base.send(WEBHOOK_LISTEN_CHANNEL, { ...Object.fromEntries(
-            Object.entries(parsed).filter(([k]) => k !== "channel")
-          ) }, event);
+          const { channel: _channel, ...channelParams } = parsed;
+          base.send(WEBHOOK_LISTEN_CHANNEL, channelParams, event);
         } catch {
           // skip malformed identifiers
         }

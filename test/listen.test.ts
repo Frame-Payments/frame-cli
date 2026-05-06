@@ -27,6 +27,7 @@ import {
   type WebhookListenFakeCableServer,
 } from "../src/transport/__tests__/helpers/fake-cable-server.js";
 import { run } from "../src/commands/listen.js";
+import type { BroadcastEventMessage } from "../src/transport/webhook-listen-protocol.js";
 
 // ─── Mock keyring ──────────────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ function waitFor(predicate: () => boolean, timeout = 3_000): Promise<void> {
   });
 }
 
-function makeEvent(overrides: Record<string, unknown> = {}) {
+function makeEvent(overrides: Partial<BroadcastEventMessage> = {}): BroadcastEventMessage {
   return {
     webhook_message_id: "wmsg_001",
     event_type: "account.created",
@@ -174,7 +175,7 @@ describe("frame listen", () => {
           "User-Agent": "Frame-Robot v1.0.0",
           "Content-Type": "application/json",
         },
-      }) as Parameters<typeof server.broadcastEvent>[0],
+      }),
     );
 
     await waitFor(() => mockFetch.mock.calls.length > 0);
@@ -219,7 +220,7 @@ describe("frame listen", () => {
     );
 
     server.broadcastEvent(
-      makeEvent({ webhook_message_id: "wmsg_ack_test" }) as Parameters<typeof server.broadcastEvent>[0],
+      makeEvent({ webhook_message_id: "wmsg_ack_test" }),
     );
 
     // Wait for ack to be received and validated by the preset
@@ -254,7 +255,7 @@ describe("frame listen", () => {
     );
 
     server.broadcastEvent(
-      makeEvent({ event_type: "refund.created" }) as Parameters<typeof server.broadcastEvent>[0],
+      makeEvent({ event_type: "refund.created" }),
     );
 
     await waitFor(() =>
@@ -310,7 +311,7 @@ describe("frame listen", () => {
 
     // Send a non-matching event — should NOT be forwarded
     server.broadcastEvent(
-      makeEvent({ event_type: "refund.created", webhook_message_id: "wmsg_skip" }) as Parameters<typeof server.broadcastEvent>[0],
+      makeEvent({ event_type: "refund.created", webhook_message_id: "wmsg_skip" }),
     );
 
     // Give it a moment
@@ -321,7 +322,7 @@ describe("frame listen", () => {
       makeEvent({
         event_type: "transfer.completed",
         webhook_message_id: "wmsg_match",
-      }) as Parameters<typeof server.broadcastEvent>[0],
+      }),
     );
 
     await waitFor(() => mockFetch.mock.calls.length > 0);
@@ -396,7 +397,7 @@ describe("frame listen", () => {
     );
 
     server.broadcastEvent(
-      makeEvent({ event_type: "account.created" }) as Parameters<typeof server.broadcastEvent>[0],
+      makeEvent({ event_type: "account.created" }),
     );
 
     await waitFor(() =>
@@ -431,7 +432,7 @@ describe("frame listen", () => {
     );
 
     server.broadcastEvent(
-      makeEvent({ event_type: "account.created" }) as Parameters<typeof server.broadcastEvent>[0],
+      makeEvent({ event_type: "account.created" }),
     );
 
     // Should log the event with status 0 (error)
