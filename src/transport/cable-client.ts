@@ -118,6 +118,21 @@ interface SubscriptionState {
   confirmTimer: ReturnType<typeof setTimeout> | null;
 }
 
+function clearConfirmTimer(state: SubscriptionState): void {
+  if (state.confirmTimer != null) {
+    clearTimeout(state.confirmTimer);
+    state.confirmTimer = null;
+  }
+}
+
+function dispatchHandlers(
+  state: SubscriptionState,
+  eventName: string,
+  data: unknown,
+): void {
+  for (const h of state.handlers.get(eventName) ?? []) h(data);
+}
+
 function makeIdentifier(
   channelName: string,
   params: Record<string, unknown>,
@@ -178,15 +193,13 @@ export function createCableClient(
     }
     rawSend(cmd);
 
-    // Start (or restart) the confirmation watchdog timer. If the server does
-    // not reply with confirm_subscription or reject_subscription within
-    // confirmTimeoutMs, emit a warning so the caller can surface it to the user
+    // Start (or restart) the confirmation watchdog. If confirm_subscription or
+    // reject_subscription does not arrive within confirmTimeoutMs, emit a warning
     // instead of silently hanging (the failure mode that produced FRA-3535).
-    if (state.confirmTimer != null) clearTimeout(state.confirmTimer);
+    clearConfirmTimer(state);
     state.confirmTimer = setTimeout(() => {
       state.confirmTimer = null;
-      const handlers = state.handlers.get("no_confirm_subscription") ?? [];
-      for (const h of handlers) h({ identifier });
+      dispatchHandlers(state, "no_confirm_subscription", { identifier });
     }, confirmTimeoutMs);
   }
 
@@ -221,28 +234,20 @@ export function createCableClient(
       const identifier = msg["identifier"] as string | undefined;
       if (identifier != null) {
         const state = subscriptions.get(identifier);
-        if (state?.confirmTimer != null) {
-          clearTimeout(state.confirmTimer);
-          state.confirmTimer = null;
-        }
+        if (state != null) clearConfirmTimer(state);
       }
       return;
     }
 
     if (type === SUBSCRIPTION_STATUS.REJECT) {
       // The server explicitly rejected the subscribe. Cancel the watchdog and
-      // notify registered handlers so callers can surface the failure instead
-      // of silently hanging.
+      // notify registered handlers so callers can surface the failure.
       const identifier = msg["identifier"] as string | undefined;
       if (identifier != null) {
         const state = subscriptions.get(identifier);
         if (state != null) {
-          if (state.confirmTimer != null) {
-            clearTimeout(state.confirmTimer);
-            state.confirmTimer = null;
-          }
-          const handlers = state.handlers.get(SUBSCRIPTION_STATUS.REJECT) ?? [];
-          for (const h of handlers) h({ identifier });
+          clearConfirmTimer(state);
+          dispatchHandlers(state, SUBSCRIPTION_STATUS.REJECT, { identifier });
         }
       }
       return;
@@ -377,10 +382,7 @@ export function createCableClient(
         },
 
         unsubscribe() {
-          if (state.confirmTimer != null) {
-            clearTimeout(state.confirmTimer);
-            state.confirmTimer = null;
-          }
+          clearConfirmTimer(state);
           subscriptions.delete(identifier);
           rawSend({ command: "unsubscribe", identifier });
         },
@@ -398,10 +400,7 @@ export function createCableClient(
       // Cancel any pending confirmation watchdog timers so they can't fire
       // after the client is torn down.
       for (const state of subscriptions.values()) {
-        if (state.confirmTimer != null) {
-          clearTimeout(state.confirmTimer);
-          state.confirmTimer = null;
-        }
+        clearConfirmTimer(state);
       }
       ws?.close();
       ws = null;
