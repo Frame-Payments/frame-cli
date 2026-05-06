@@ -11,11 +11,15 @@
  *   4. ping/pong heartbeat → client responds to server pings
  *   5. reconnect within window → missed events are replayed
  *   6. reconnect outside window → missed events are NOT replayed
+ *   7. reject_subscription → handler called when server rejects subscribe
+ *   8. no_confirm_subscription → warning fires when server stays silent past timeout
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCableClient, type CableClient } from "../cable-client.js";
 import { createFakeCableServer, type FakeCableServer } from "./helpers/fake-cable-server.js";
+import { createServer as createHttpServer } from "node:http";
+import { WebSocketServer } from "ws";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -422,6 +426,94 @@ describe("cable-client", () => {
 
       authedClient.disconnect();
       await authedServer.close();
+    });
+  });
+
+  // ── 7. reject_subscription ──────────────────────────────────────────────────────────────────
+
+  describe("subscribe failure surfacing", () => {
+    it("fires 'reject_subscription' handler when server sends reject_subscription", async () => {
+      // Use the allowedChannels option so the fake server sends reject_subscription
+      // for any channel not in the list — mirrors Rails' "Subscription class not found".
+      const rejectServer = await createFakeCableServer({
+        allowedChannels: ["AllowedChannel"],
+      });
+
+      client = createCableClient(rejectServer.url, { initialDelay: 50 });
+
+      const rejections: unknown[] = [];
+      client
+        .subscribe("UnknownChannel")
+        .on("reject_subscription", (data) => rejections.push(data));
+
+      await waitFor(() => rejections.length > 0, 2_000);
+      expect(rejections.length).toBeGreaterThanOrEqual(1);
+
+      await rejectServer.close();
+    });
+
+    it("fires 'no_confirm_subscription' handler when server stays silent past the timeout", async () => {
+      // Build a minimal WebSocket server that accepts the upgrade and sends
+      // welcome but NEVER sends confirm_subscription — exactly the failure
+      // mode that produced FRA-3535's silent hang.
+      const httpRaw = createHttpServer();
+      const silentWss = new WebSocketServer({ noServer: true });
+
+      silentWss.on("connection", (ws) => {
+        // Send welcome, then stay silent forever (no confirm_subscription).
+        ws.send(JSON.stringify({ type: "welcome" }));
+      });
+
+      httpRaw.on("upgrade", (req, socket, head) => {
+        silentWss.handleUpgrade(req, socket, head, (ws) => {
+          silentWss.emit("connection", ws, req);
+        });
+      });
+
+      await new Promise<void>((res) => httpRaw.listen(0, "127.0.0.1", res));
+      const { port } = httpRaw.address() as { port: number };
+      const silentUrl = `ws://127.0.0.1:${port}/cable`;
+
+      const warnings: unknown[] = [];
+      // Use a very short confirmTimeoutMs so the test runs quickly.
+      const silentClient = createCableClient(silentUrl, {
+        initialDelay: 50_000, // suppress reconnect storm
+        confirmTimeoutMs: 100,
+      });
+
+      silentClient
+        .subscribe("SomeChannel")
+        .on("no_confirm_subscription", (data) => warnings.push(data));
+
+      await waitFor(() => warnings.length > 0, 2_000);
+      expect(warnings.length).toBeGreaterThanOrEqual(1);
+
+      silentClient.disconnect();
+      await new Promise<void>((res) =>
+        silentWss.close(() => httpRaw.close(() => res())),
+      );
+    });
+
+    it("does NOT fire 'no_confirm_subscription' when server confirms in time", async () => {
+      // Standard fake server always sends confirm_subscription promptly.
+      client = createCableClient(server.url, {
+        initialDelay: 50,
+        confirmTimeoutMs: 300,
+      });
+
+      const warnings: unknown[] = [];
+      client
+        .subscribe("SafeChannel")
+        .on("no_confirm_subscription", (data) => warnings.push(data));
+
+      // Wait well past the timeout — no warning should appear because the
+      // fake server confirms promptly.
+      await waitFor(() =>
+        server.received.some((m) => m.command === "subscribe"),
+      );
+      await sleep(400); // past confirmTimeoutMs
+
+      expect(warnings).toHaveLength(0);
     });
   });
 });

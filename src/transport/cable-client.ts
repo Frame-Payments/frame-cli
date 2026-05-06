@@ -17,9 +17,13 @@
  *   - ping/pong heartbeat: server sends {"type":"ping"}, client echoes {"type":"pong"}
  *   - replay-on-reconnect: if reconnection happens within replayWindowMs of the disconnect,
  *     the subscribe command includes last_received_at so the server can replay missed events
+ *   - subscribe-failure surfacing: fires "reject_subscription" event when the server
+ *     explicitly rejects; fires "no_confirm_subscription" warning event when no
+ *     confirm_subscription arrives within confirmTimeoutMs (default 5 s)
  */
 
 import { WebSocket } from "ws";
+import { SUBSCRIPTION_STATUS } from "./webhook-listen-protocol.js";
 
 // ─── Public types ──────────────────────────────────────────────────────────────
 
@@ -51,6 +55,14 @@ export interface CableClientOptions {
    * replay on reconnect.  Default: 5 minutes.
    */
   replayWindowMs?: number;
+  /**
+   * How long (ms) the client waits for a `confirm_subscription` after sending
+   * a `subscribe` command before firing the `"no_confirm_subscription"` warning
+   * event on the subscription. Default: 5 000 ms.
+   *
+   * Overridable for tests so suites don't have to sleep for 5 seconds.
+   */
+  confirmTimeoutMs?: number;
   /**
    * API key sent as `Authorization: Bearer <apiKey>` on the WS upgrade
    * handshake. The Rails-side `Cli::ApplicationCable::Connection` reads this
@@ -98,6 +110,12 @@ interface SubscriptionState {
   lastReceivedAt: number | null;
   /** Set when the connection dropped; cleared when we receive a new message. */
   disconnectedAt: number | null;
+  /**
+   * Timer handle set after each `subscribe` command is sent. Cleared when
+   * `confirm_subscription` or `reject_subscription` arrives. If it fires,
+   * the client emits a `"no_confirm_subscription"` event to registered handlers.
+   */
+  confirmTimer: ReturnType<typeof setTimeout> | null;
 }
 
 function makeIdentifier(
@@ -118,6 +136,7 @@ export function createCableClient(
     factor = 2,
     maxDelay = 30_000,
     replayWindowMs = 5 * 60 * 1_000,
+    confirmTimeoutMs = 5_000,
     apiKey,
   } = options;
 
@@ -158,6 +177,17 @@ export function createCableClient(
       cmd["last_received_at"] = state.lastReceivedAt;
     }
     rawSend(cmd);
+
+    // Start (or restart) the confirmation watchdog timer. If the server does
+    // not reply with confirm_subscription or reject_subscription within
+    // confirmTimeoutMs, emit a warning so the caller can surface it to the user
+    // instead of silently hanging (the failure mode that produced FRA-3535).
+    if (state.confirmTimer != null) clearTimeout(state.confirmTimer);
+    state.confirmTimer = setTimeout(() => {
+      state.confirmTimer = null;
+      const handlers = state.handlers.get("no_confirm_subscription") ?? [];
+      for (const h of handlers) h({ identifier });
+    }, confirmTimeoutMs);
   }
 
   // ── Message handling ─────────────────────────────────────────────────────────
@@ -182,7 +212,39 @@ export function createCableClient(
       return;
     }
 
-    if (type === "welcome" || type === "confirm_subscription" || type === "reject_subscription") {
+    if (type === "welcome") {
+      return;
+    }
+
+    if (type === SUBSCRIPTION_STATUS.CONFIRM) {
+      // Clear the confirmation watchdog — the server acknowledged the subscribe.
+      const identifier = msg["identifier"] as string | undefined;
+      if (identifier != null) {
+        const state = subscriptions.get(identifier);
+        if (state?.confirmTimer != null) {
+          clearTimeout(state.confirmTimer);
+          state.confirmTimer = null;
+        }
+      }
+      return;
+    }
+
+    if (type === SUBSCRIPTION_STATUS.REJECT) {
+      // The server explicitly rejected the subscribe. Cancel the watchdog and
+      // notify registered handlers so callers can surface the failure instead
+      // of silently hanging.
+      const identifier = msg["identifier"] as string | undefined;
+      if (identifier != null) {
+        const state = subscriptions.get(identifier);
+        if (state != null) {
+          if (state.confirmTimer != null) {
+            clearTimeout(state.confirmTimer);
+            state.confirmTimer = null;
+          }
+          const handlers = state.handlers.get(SUBSCRIPTION_STATUS.REJECT) ?? [];
+          for (const h of handlers) h({ identifier });
+        }
+      }
       return;
     }
 
@@ -286,6 +348,7 @@ export function createCableClient(
         handlers: new Map(),
         lastReceivedAt: null,
         disconnectedAt: null,
+        confirmTimer: null,
       };
       subscriptions.set(identifier, state);
 
@@ -314,6 +377,10 @@ export function createCableClient(
         },
 
         unsubscribe() {
+          if (state.confirmTimer != null) {
+            clearTimeout(state.confirmTimer);
+            state.confirmTimer = null;
+          }
           subscriptions.delete(identifier);
           rawSend({ command: "unsubscribe", identifier });
         },
@@ -327,6 +394,14 @@ export function createCableClient(
       if (reconnectTimer != null) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
+      }
+      // Cancel any pending confirmation watchdog timers so they can't fire
+      // after the client is torn down.
+      for (const state of subscriptions.values()) {
+        if (state.confirmTimer != null) {
+          clearTimeout(state.confirmTimer);
+          state.confirmTimer = null;
+        }
       }
       ws?.close();
       ws = null;
