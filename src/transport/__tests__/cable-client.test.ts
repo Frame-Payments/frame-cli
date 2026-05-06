@@ -565,6 +565,46 @@ describe("cable-client", () => {
       expect(parsed["session_token"]).toBe("tok_reconnect");
     });
 
+    it("sends exactly one subscribe per logical subscription on reconnect, even after updateParams", async () => {
+      // Regression: pre-fix, updateParams added the new identifier to the
+      // internal Map without removing the old one. ws.on("open") iterated
+      // Map.values() and called sendSubscribe once per Map entry — with
+      // both entries pointing at the same state, two duplicate subscribes
+      // were sent on every reconnect, which on a flaky server (revive
+      // failures) produced multiple :cli_session endpoint rows per
+      // `frame listen` process and a fresh "Session started" line per
+      // reconnect. See FRA-3535 thread.
+      client = createCableClient(server.url, { initialDelay: 50 });
+
+      const sub = client.subscribe("ChatChannel", { room: "lobby" });
+      await waitFor(() => server.received.some((m) => m.command === "subscribe"));
+      await sleep(20);
+
+      // Two updateParams calls (simulating a session being re-issued) leave
+      // the internal Map with three accumulated identifiers for the same
+      // state, magnifying the duplicate-subscribe bug if it regresses.
+      sub.updateParams({ room: "lobby", session_token: "tok_one" });
+      sub.updateParams({ room: "lobby", session_token: "tok_two" });
+
+      const subsBefore = server.received.filter((m) => m.command === "subscribe").length;
+
+      server.forceDisconnect();
+
+      await waitFor(
+        () => server.received.filter((m) => m.command === "subscribe").length > subsBefore,
+        3_000,
+      );
+      // Give the open handler a tick in case duplicates are queued.
+      await sleep(50);
+
+      const reconnectSubs = server.received
+        .filter((m) => m.command === "subscribe")
+        .slice(subsBefore);
+      expect(reconnectSubs).toHaveLength(1);
+      const parsed = JSON.parse(reconnectSubs[0]!.identifier!) as Record<string, unknown>;
+      expect(parsed["session_token"]).toBe("tok_two");
+    });
+
     it("routes incoming messages to the subscription after params update + reconnect", async () => {
       client = createCableClient(server.url, { initialDelay: 50 });
 

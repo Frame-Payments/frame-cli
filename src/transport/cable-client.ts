@@ -313,7 +313,18 @@ export function createCableClient(
 
     ws.on("open", () => {
       reconnectAttempts = 0;
-      for (const state of subscriptions.values()) {
+
+      // The Map can hold multiple identifiers pointing at the same
+      // SubscriptionState — `updateParams` adds a new identifier without
+      // removing the previous one so messages arriving on the OLD identifier
+      // (still in flight on the prior connection) keep routing. After a
+      // reconnect, the server has dropped all prior subscriptions, so only
+      // the latest identifier matters: dedupe by state and re-key the Map
+      // so we send exactly one subscribe per logical subscription.
+      const uniqueStates = new Set(subscriptions.values());
+      subscriptions.clear();
+      for (const state of uniqueStates) {
+        subscriptions.set(makeIdentifier(state.channelName, state.params), state);
         sendSubscribe(state);
       }
     });
