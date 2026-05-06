@@ -35,6 +35,17 @@
 /** Server-side channel class name. */
 export const CHANNEL_NAME = "Cli::WebhookListenChannel" as const;
 
+/**
+ * ActionCable subscription-status message types (server → client).
+ * Used by cable-client to surface rejection and confirmation-timeout events.
+ */
+export const SUBSCRIPTION_STATUS = {
+  /** Server confirmed the subscribe command. */
+  CONFIRM: "confirm_subscription",
+  /** Server explicitly rejected the subscribe command. */
+  REJECT: "reject_subscription",
+} as const;
+
 /** Subscribe-time params (CLI → server, on the ActionCable subscribe command). */
 export const SUBSCRIBE_PARAMS = {
   EVENT_CODES: "event_codes",
