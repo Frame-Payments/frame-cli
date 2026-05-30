@@ -37,28 +37,6 @@ Every triaged issue should carry exactly one category role and one state role. I
 
 These are canonical role names — the actual label strings used in the issue tracker may differ. The mapping should have been provided to you - run `/setup-matt-pocock-skills` if not.
 
-## Label mapping (this repo)
-
-Issues for this repo live in **Linear**, team `FRA`. Apply labels via `linear issue update <id> --label <label>` (which **replaces** the label set; pass every label you want to keep).
-
-| Canonical role     | Linear label string   |
-| ------------------ | --------------------- |
-| `bug`              | `bug`                 |
-| `enhancement`      | `enhancement`         |
-| `needs-triage`     | `needs-triage`        |
-| `needs-info`       | `needs-info`          |
-| `ready-for-agent`  | `ready-for-cli-agent` |
-| `ready-for-human`  | `ready-for-human`     |
-| `wontfix`          | `wontfix`             |
-
-**Why `ready-for-cli-agent` (not the generic `ready-for-agent`)?** The `FRA` team spans multiple repos (frame, frame-ruby, frame-cli, docs, …). The Sandcastle planner in *this* repo (`.sandcastle/plan-prompt.md`) only picks up issues labelled `ready-for-cli-agent`, so an agent running here never gets handed work that belongs to another codebase. Other repos use their own variants (e.g. `ready-for-frame-agent`).
-
-When moving an issue to `ready-for-agent`:
-
-- If the work lives in `frame-cli`, apply `ready-for-cli-agent`.
-- If the work clearly belongs to another repo, apply that repo's variant (or the plain `ready-for-agent` placeholder if no scoped label exists yet) and tell the maintainer — don't silently route it.
-- If you're unsure which repo owns the work, stay in `needs-triage` and ask.
-
 State transitions: an unlabeled issue normally goes to `needs-triage` first; from there it moves to `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`. `needs-info` returns to `needs-triage` once the reporter replies. The maintainer can override at any time — flag transitions that look unusual and ask before proceeding.
 
 ## Invocation
@@ -100,7 +78,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
 
 ## Quick state override
 
-If the maintainer says "move #42 to ready-for-agent", trust them and apply the role directly — using the repo-scoped label from the mapping above (e.g. `ready-for-cli-agent` for frame-cli work). Confirm what you're about to do (role changes, comment, close), then act. Skip grilling. If moving to `ready-for-agent` without a grilling session, ask whether they want to write an agent brief.
+If the maintainer says "move #42 to ready-for-agent", trust them and apply the role directly. Confirm what you're about to do (role changes, comment, close), then act. Skip grilling. If moving to `ready-for-agent` without a grilling session, ask whether they want to write an agent brief.
 
 ## Needs-info template
 

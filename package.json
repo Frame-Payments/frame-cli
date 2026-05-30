@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/Frame-Payments/frame-cli#readme",
   "type": "module",
-  "files": ["bin/", "dist/", "skills/", "fixtures/", "README.md"],
+  "files": ["bin/", "dist/", "skills/", "README.md"],
   "bin": {
     "frame": "./bin/frame"
   },
