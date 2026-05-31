@@ -347,13 +347,13 @@ describe("cable-client", () => {
 
   // ── auth ────────────────────────────────────────────────────────────────────
   //
-  // Regression test for the wire-path auth gap that bit `frame logs tail` and
-  // (silently) `frame listen`. The Rails-side `Cli::ApplicationCable::Connection`
-  // reads an `Authorization: Bearer <api-key>` header on the WS upgrade and
-  // rejects the connection if it's missing. Earlier versions of the cable-client
-  // had no way to send that header, so the upgrade succeeded at the socket layer
-  // and was immediately rejected by ActionCable — producing the "open then
-  // immediately close" pattern in the Rails log.
+  // Regression test for the wire-path auth gap that bit `frame listen` early on.
+  // The Rails-side `Cli::ApplicationCable::Connection` reads an
+  // `Authorization: Bearer <api-key>` header on the WS upgrade and rejects the
+  // connection if it's missing. Earlier versions of the cable-client had no way
+  // to send that header, so the upgrade succeeded at the socket layer and was
+  // immediately rejected by ActionCable — producing the "open then immediately
+  // close" pattern in the Rails log.
   //
   // The fix is twofold:
   //   1. cable-client accepts an `apiKey` option and forwards it as a
@@ -389,7 +389,7 @@ describe("cable-client", () => {
         expectedApiKey: "sk_test_xyz",
       });
 
-      // No apiKey — mirrors the bug shape in `frame logs tail` before the fix.
+      // No apiKey — mirrors the bug shape in cable-client before the fix.
       const unauthedClient = createCableClient(authedServer.url, {
         initialDelay: 10_000, // suppress reconnect storm during the test
       });

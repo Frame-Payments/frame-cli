@@ -2,7 +2,7 @@
 
 **Sandbox developer tooling for the [Frame](https://framepayments.com) API** — version 0.0.0 · sandbox only
 
-Simulate payments, stream real-time logs, and forward webhook events to a local server — all against the Frame sandbox, without touching live keys.
+Simulate payments and forward webhook events to a local server — all against the Frame sandbox, without touching live keys.
 
 ---
 
@@ -47,7 +47,6 @@ Your local server receives webhook payloads within seconds of the events being p
 | [`frame login`](https://github.com/Frame-Payments/frame-cli#readme) | Authenticate with your Frame sandbox API key |
 | [`frame logout`](https://github.com/Frame-Payments/frame-cli#readme) | Remove stored credentials from the OS keychain |
 | [`frame whoami`](https://github.com/Frame-Payments/frame-cli#readme) | Show the currently authenticated merchant |
-| [`frame logs tail`](https://github.com/Frame-Payments/frame-cli#readme) | Stream real-time sandbox API request logs |
 | [`frame listen`](https://github.com/Frame-Payments/frame-cli#readme) | Forward sandbox webhook events to a local URL |
 | [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
 | [`frame open [page]`](https://github.com/Frame-Payments/frame-cli#readme) | Open a dashboard page in the default browser |
@@ -67,7 +66,7 @@ npx skills add Frame-Payments/frame-cli
 Or browse the skill directly at:
 [skills.sh/Frame-Payments/frame-cli/frame-cli](https://skills.sh/Frame-Payments/frame-cli/frame-cli)
 
-The skill documents all 8 commands, end-to-end workflows, and common gotchas (blocking commands, OS keychain in headless containers, deprecated vocabulary redirects).
+The skill documents all 7 commands, end-to-end workflows, and common gotchas (blocking commands, OS keychain in headless containers, deprecated vocabulary redirects).
 
 ---
 

@@ -16,7 +16,7 @@ This file is a pointer index. CLI-internal ADRs — decisions that affect only t
 
 - **[ADR-0007](../../../frame/docs/adr/0007-cli-sandbox-only-v1.md)** — The Frame CLI is sandbox-only in v1. Live mode is deferred until a separate threat model is done.
 
-- **[ADR-0008](../../../frame/docs/adr/0008-actioncable-cli-streaming-transport.md)** — ActionCable is the streaming transport for `logs tail` and `listen`. SSE, raw WebSocket, gRPC, and AnyCable were considered.
+- **[ADR-0008](../../../frame/docs/adr/0008-actioncable-cli-streaming-transport.md)** — ActionCable is the streaming transport for `listen`. SSE, raw WebSocket, gRPC, and AnyCable were considered. (LogsChannel / `logs tail` was a second planned consumer; deferred from v1 per [FRA-4020](https://linear.app/framepayments/issue/FRA-4020) — see the ADR's Status note.)
 
 ## When to add a CLI-internal ADR
 

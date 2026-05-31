@@ -1,7 +1,7 @@
 /**
  * In-memory fake ActionCable server.
  *
- * Reusable fixture for cable-client tests and for listen / logs-tail tests.
+ * Reusable fixture for cable-client tests and for listen tests.
  *
  * Features:
  *   - Speaks the ActionCable v1-JSON protocol (welcome → confirm_subscription → messages)
@@ -195,7 +195,7 @@ export interface FakeCableServerOptions {
    * other channel class receive a `reject_subscription` reply, mirroring Rails'
    * `Subscription class not found` behaviour.
    *
-   * Use fully-namespaced Rails class names (e.g. `"Cli::LogsChannel"`).
+   * Use fully-namespaced Rails class names (e.g. `"Cli::WebhookListenChannel"`).
    *
    * Default: undefined → any channel is accepted (back-compat for older tests).
    */
@@ -437,7 +437,7 @@ export async function createFakeCableServer(
  * Example:
  *   const server = await createFullyWiredFakeCableServer(
  *     "sk_test_xyz",
- *     ["Cli::LogsChannel", "Cli::WebhookListenChannel"],
+ *     ["Cli::WebhookListenChannel"],
  *   );
  */
 export function createFullyWiredFakeCableServer(

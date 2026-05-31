@@ -51,7 +51,6 @@ describe("skills/frame-cli/SKILL.md", () => {
       "frame logout",
       "frame whoami",
       "frame listen",
-      "frame logs tail",
       "frame events resend",
       "frame open",
     ];

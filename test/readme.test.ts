@@ -48,7 +48,6 @@ describe("README.md", () => {
       "frame login",
       "frame logout",
       "frame whoami",
-      "frame logs tail",
       "frame listen",
       "frame events resend",
       "frame open",

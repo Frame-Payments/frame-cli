@@ -3,13 +3,12 @@ name: frame-cli
 description: >
   Drive the Frame sandbox CLI to test webhook integrations and debug
   server-side logic — without touching live mode. Use this skill when the user
-  wants to tail sandbox logs, listen for webhooks, resend past sandbox events,
-  authenticate the CLI, or open the Frame dashboard. Also activates for legacy
-  Frame vocabulary: customer, charge_intent, payout, charge — all map to
-  canonical surfaces (accounts, transfers, refunds). Sandbox-only: live
-  credentials are rejected at runtime. Core commands: frame login, frame logout,
-  frame whoami, frame listen, frame logs tail, frame events resend <evt_id>,
-  frame open [page].
+  wants to listen for webhooks, resend past sandbox events, authenticate the
+  CLI, or open the Frame dashboard. Also activates for legacy Frame vocabulary:
+  customer, charge_intent, payout, charge — all map to canonical surfaces
+  (accounts, transfers, refunds). Sandbox-only: live credentials are rejected at
+  runtime. Core commands: frame login, frame logout, frame whoami, frame listen,
+  frame events resend <evt_id>, frame open [page].
 compatibility: >
   Requires `frame` on PATH (npm install -g @frame-payments/cli). Reads/writes OS
   keychain (keytar) for credential storage — may fail in headless containers
@@ -21,15 +20,15 @@ allowed-tools: Bash(frame:*)
 ## What this is
 
 The Frame CLI (`frame`) is a sandbox-only developer tool for driving the Frame
-API. It lets you authenticate, forward webhook events to a local server, tail
-structured logs, resend past events, and open the Frame dashboard — all against
-the sandbox environment.
+API. It lets you authenticate, forward webhook events to a local server, resend
+past events, and open the Frame dashboard — all against the sandbox environment.
 
 **v1 scope note.** The CLI does not currently include a command to provoke
 Frame-initiated state transitions (account restriction, capability decisions,
-processor-driven settlement). Drive sandbox traffic through your normal API/SDK
-calls or the dashboard; the listener and log stream surface the resulting
-events. A scenario-shaped sandbox simulation API is on the roadmap.
+processor-driven settlement), nor a command to stream sandbox request logs.
+Drive sandbox traffic through your normal API/SDK calls or the dashboard; the
+listener surfaces the resulting webhook events. A scenario-shaped sandbox
+simulation API and a streaming-logs command are on the roadmap.
 
 **Sandbox-only.** Live API keys are rejected. Every operation targets the Frame
 sandbox.
@@ -63,7 +62,6 @@ or `dbus-launch`).
 | `frame logout` | Remove stored credentials |
 | `frame whoami` | Print the authenticated identity |
 | `frame listen` | Forward sandbox webhooks to a local server |
-| `frame logs tail` | Stream sandbox log entries in real time |
 | `frame events resend <evt_id>` | Resend a past sandbox event by ID |
 | `frame open [page]` | Open a Frame dashboard page in the browser |
 
@@ -93,18 +91,6 @@ LISTEN_PID=$!
 # ... run other commands ...
 kill $LISTEN_PID
 ```
-
-### `frame logs tail`
-Streams structured sandbox log entries in real time. Supports filtering:
-
-```bash
-frame logs tail --filter-status 4xx,5xx
-frame logs tail --filter-path /webhooks
-frame logs tail --json | jq '.url'
-```
-
-**This command blocks until Ctrl-C.** Background it the same way as
-`frame listen` when combining with other commands.
 
 ### `frame events resend <evt_id>`
 Resends a past sandbox event to your registered webhook endpoints. Use this to
@@ -141,8 +127,9 @@ LISTEN_PID=$!
 kill $LISTEN_PID
 ```
 
-Your local server should receive webhook payloads within a few seconds.
-Check `frame logs tail` if nothing arrives.
+Your local server should receive webhook payloads within a few seconds. If
+nothing arrives, double-check the `--forward-to` URL and that your local server
+is up.
 
 ### 2. Reproduce a flaky webhook delivery
 
@@ -159,24 +146,6 @@ frame events resend evt_abc123
 
 This replays the exact same payload to all registered webhook endpoints.
 
-### 3. Tail logs filtered to a failing endpoint
-
-Isolate failures without noise from other traffic:
-
-```bash
-# Filter by HTTP status (4xx and 5xx only)
-frame logs tail --filter-status 4xx,5xx
-
-# Filter by path
-frame logs tail --filter-path /webhooks/frame
-
-# Combine filters and pipe to jq for field extraction
-frame logs tail --json | jq 'select(.status >= 400) | {url, status, event}'
-```
-
-Background `frame logs tail` the same way as `frame listen` when you also need
-to trigger events in the same shell session.
-
 ---
 
 ## Discovering options
@@ -186,7 +155,6 @@ Every command has a `--help` flag:
 ```bash
 frame --help
 frame listen --help
-frame logs tail --help
 frame open --help       # lists valid page arguments
 ```
 
@@ -207,7 +175,7 @@ frame open --help       # lists valid page arguments
   stdout. If you are parsing `frame` output programmatically, add `--json` where
   supported and filter out banner lines, or redirect stderr separately.
 
-- **Blocking commands must be backgrounded.** `frame listen` and `frame logs tail`
-  block the terminal until Ctrl-C. If you invoke them without `&` and then try
-  to run another command in the same shell, your session will hang. Always
-  background them and capture the PID so you can kill them cleanly.
+- **Blocking commands must be backgrounded.** `frame listen` blocks the
+  terminal until Ctrl-C. If you invoke it without `&` and then try to run
+  another command in the same shell, your session will hang. Always background
+  it and capture the PID so you can kill it cleanly.
