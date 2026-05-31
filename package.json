@@ -1,6 +1,6 @@
 {
   "name": "@frame-payments/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Frame CLI — sandbox developer tooling for the Frame API",
   "main": "index.js",
   "directories": {
