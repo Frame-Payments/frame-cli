@@ -1,75 +1,101 @@
 /**
  * Contract tests for auth/keyring.
  *
- * keytar is mocked so no OS keychain is touched during tests.
+ * Uses a real temp directory pointed at via $XDG_CONFIG_HOME so we exercise
+ * the actual filesystem code path without touching the developer's real
+ * `~/.config/frame/credentials.json`.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 
-// Mock keytar before importing keyring so the module picks up the mock.
-//
-// IMPORTANT: the mock shape mirrors keytar's *real* CJS export shape
-// (`module.exports = { getPassword, setPassword, ... }`), exposed under
-// `default` for ESM default-import consumers. `keyring.ts` uses
-// `import keytar from "keytar"` — see the comment in that file for the
-// ESM-interop background.
-vi.mock("keytar", () => ({
-  default: {
-    getPassword: vi.fn(),
-    setPassword: vi.fn(),
-    deletePassword: vi.fn(),
-  },
-}));
+import { get, set, clear, credentialsPath, type Credential } from "../keyring.js";
 
-import keytar from "keytar";
-import { get, set, clear, type Credential } from "../keyring.js";
+const CRED: Credential = {
+  apiKey: "sk_test_abc123",
+  merchant: "acct_test_001",
+  devMode: true,
+};
 
-const mockGet = vi.mocked(keytar.getPassword);
-const mockSet = vi.mocked(keytar.setPassword);
-const mockDelete = vi.mocked(keytar.deletePassword);
+let tmpRoot: string;
+let prevXdg: string | undefined;
 
-const CRED: Credential = { apiKey: "sk_test_abc123", merchant: "acct_test_001", devMode: false };
+beforeEach(async () => {
+  tmpRoot = await mkdtemp(join(tmpdir(), "frame-keyring-test-"));
+  prevXdg = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = tmpRoot;
+});
 
-beforeEach(() => {
-  vi.clearAllMocks();
+afterEach(async () => {
+  if (prevXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+  else process.env.XDG_CONFIG_HOME = prevXdg;
+  await rm(tmpRoot, { recursive: true, force: true });
+});
+
+describe("keyring.credentialsPath", () => {
+  it("resolves under $XDG_CONFIG_HOME/frame/credentials.json", () => {
+    expect(credentialsPath()).toBe(join(tmpRoot, "frame", "credentials.json"));
+  });
 });
 
 describe("keyring.get", () => {
   it("returns null when no credential is stored", async () => {
-    mockGet.mockResolvedValueOnce(null);
-    const result = await get();
-    expect(result).toBeNull();
+    expect(await get()).toBeNull();
   });
 
   it("returns a parsed Credential when one is stored", async () => {
-    mockGet.mockResolvedValueOnce(JSON.stringify(CRED));
-    const result = await get();
-    expect(result).toEqual(CRED);
-  });
-
-  it("calls keytar.getPassword with the correct service and account", async () => {
-    mockGet.mockResolvedValueOnce(null);
-    await get();
-    expect(mockGet).toHaveBeenCalledWith("frame-cli", "api-key");
+    await set(CRED);
+    expect(await get()).toEqual(CRED);
   });
 });
 
 describe("keyring.set", () => {
-  it("calls keytar.setPassword with JSON-serialised credential", async () => {
-    mockSet.mockResolvedValueOnce(undefined);
+  it("writes the credential as JSON at the resolved path", async () => {
     await set(CRED);
-    expect(mockSet).toHaveBeenCalledWith(
-      "frame-cli",
-      "api-key",
-      JSON.stringify(CRED),
-    );
+    const raw = await fs.readFile(credentialsPath(), "utf8");
+    expect(JSON.parse(raw)).toEqual(CRED);
+  });
+
+  it("creates parent directories that did not exist", async () => {
+    await set(CRED);
+    const stat = await fs.stat(join(tmpRoot, "frame"));
+    expect(stat.isDirectory()).toBe(true);
+  });
+
+  it("writes the credential file with mode 0600", async () => {
+    await set(CRED);
+    const stat = await fs.stat(credentialsPath());
+    // Mask off file-type bits, keep the permission bits.
+    expect(stat.mode & 0o777).toBe(0o600);
+  });
+
+  it("overwrites an existing credential", async () => {
+    await set(CRED);
+    const next: Credential = { ...CRED, apiKey: "sk_test_xyz", devMode: true };
+    await set(next);
+    expect(await get()).toEqual(next);
+  });
+
+  it("tightens permissions on a pre-existing looser file", async () => {
+    await fs.mkdir(join(tmpRoot, "frame"), { recursive: true });
+    await fs.writeFile(credentialsPath(), "{}", { mode: 0o644 });
+    await set(CRED);
+    const stat = await fs.stat(credentialsPath());
+    expect(stat.mode & 0o777).toBe(0o600);
   });
 });
 
 describe("keyring.clear", () => {
-  it("calls keytar.deletePassword with the correct service and account", async () => {
-    mockDelete.mockResolvedValueOnce(true);
+  it("removes the stored credential", async () => {
+    await set(CRED);
     await clear();
-    expect(mockDelete).toHaveBeenCalledWith("frame-cli", "api-key");
+    expect(await get()).toBeNull();
+  });
+
+  it("is a no-op when no credential exists", async () => {
+    await expect(clear()).resolves.toBeUndefined();
   });
 });

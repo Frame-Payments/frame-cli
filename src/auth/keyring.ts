@@ -1,21 +1,23 @@
 /**
- * auth/keyring — thin wrapper over keytar.
+ * auth/keyring — credential store backed by a file on disk.
  *
- * Stores a single Frame API credential (API key + merchant ID) in the
- * OS keychain under service "frame-cli" / account "api-key".
+ * Stores a single Frame API credential (API key + merchant ID) as JSON at
+ * `$XDG_CONFIG_HOME/frame/credentials.json` (defaulting to
+ * `~/.config/frame/credentials.json`). Directory is created with mode 0700
+ * and the file is written with mode 0600 — matching the pattern used by
+ * `gh`, `aws`, `stripe`, and most other developer CLIs.
  *
- * IMPORTANT: keytar is a CommonJS native module. Use the **default import**
- * (`import keytar from "keytar"`), not a namespace import (`import * as`).
- * Under raw Node ESM — the loader the bundled CLI runs under — the namespace
- * style does not promote every CJS export to a named ESM export, leaving
- * `setPassword` / `deletePassword` undefined and producing
- * `TypeError: keytar.setPassword is not a function` at runtime. The bug is
- * masked by Vitest's transform pipeline, so unit tests that mock keytar do
- * not catch it. See `src/auth/__tests__/keytar-binding.test.ts` (subprocess
- * smoke test that mirrors this import style and runs under raw Node ESM).
+ * History: this module used to wrap `keytar` to put credentials in the OS
+ * keychain. keytar is unmaintained (last release 2021) and its prebuilt
+ * native binaries do not cover modern Node versions, which made Homebrew
+ * installs fail when Homebrew shipped Node 22+. The CLI is sandbox-only
+ * (ADR-0007), so the threat model does not require OS-keychain storage —
+ * a 0600 file is the pragmatic choice.
  */
 
-import keytar from "keytar";
+import { promises as fs } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 
 export interface Credential {
   apiKey: string;
@@ -36,22 +38,46 @@ export interface Credential {
   baseUrl?: string;
 }
 
-const SERVICE = "frame-cli";
-const ACCOUNT = "api-key";
+/**
+ * Resolve the credentials file path. Exported for tests; callers should
+ * not depend on the path. Honours `$XDG_CONFIG_HOME` per the XDG Base
+ * Directory spec, otherwise falls back to `~/.config/frame`.
+ */
+export function credentialsPath(): string {
+  const xdg = process.env.XDG_CONFIG_HOME;
+  const base = xdg && xdg.length > 0 ? xdg : join(homedir(), ".config");
+  return join(base, "frame", "credentials.json");
+}
 
 /** Retrieve the stored credential, or null if none exists. */
 export async function get(): Promise<Credential | null> {
-  const raw = await keytar.getPassword(SERVICE, ACCOUNT);
-  if (raw === null) return null;
+  const path = credentialsPath();
+  let raw: string;
+  try {
+    raw = await fs.readFile(path, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
   return JSON.parse(raw) as Credential;
 }
 
-/** Persist a credential to the OS keychain. */
+/** Persist a credential to disk. Creates parent dirs with mode 0700 and file with mode 0600. */
 export async function set(cred: Credential): Promise<void> {
-  await keytar.setPassword(SERVICE, ACCOUNT, JSON.stringify(cred));
+  const path = credentialsPath();
+  await fs.mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  await fs.writeFile(path, JSON.stringify(cred), { mode: 0o600 });
+  // writeFile only sets mode on creation; chmod ensures 0600 if the file pre-existed with looser perms.
+  await fs.chmod(path, 0o600);
 }
 
-/** Remove the stored credential from the OS keychain. */
+/** Remove the stored credential from disk. No-op if no credential is stored. */
 export async function clear(): Promise<void> {
-  await keytar.deletePassword(SERVICE, ACCOUNT);
+  const path = credentialsPath();
+  try {
+    await fs.unlink(path);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
 }
