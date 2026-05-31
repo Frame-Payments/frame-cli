@@ -1,6 +1,6 @@
 /**
  * `frame login` — prompt for an API key, validate against GET /me,
- * and persist to the OS keychain via auth/keyring.
+ * and persist via auth/keyring.
  *
  * Live keys (sk_live_*) are rejected immediately; this CLI is
  * sandbox-only tooling.
@@ -66,7 +66,7 @@ export async function run(opts: LoginOptions = {}): Promise<void> {
     );
   }
 
-  // Persist to keychain. Map snake_case wire fields to camelCase domain
+  // Persist credential. Map snake_case wire fields to camelCase domain
   // fields at this boundary (ADR-0002). Only record baseUrl when it
   // differs from the hardcoded production default — keeps the common
   // case minimal.
@@ -81,6 +81,6 @@ export async function run(opts: LoginOptions = {}): Promise<void> {
   await set(cred);
 
   process.stdout.write(
-    `Logged in as ${me.merchant_name} (${me.merchant_id}). Credential saved to keychain.\n`,
+    `Logged in as ${me.merchant_name} (${me.merchant_id}). Credential saved.\n`,
   );
 }

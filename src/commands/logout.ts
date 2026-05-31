@@ -1,10 +1,10 @@
 /**
- * `frame logout` — clear the stored credential from the OS keychain.
+ * `frame logout` — clear the stored Frame credential.
  */
 
 import { clear } from "../auth/keyring.js";
 
 export async function run(): Promise<void> {
   await clear();
-  process.stdout.write("Logged out. Credential removed from keychain.\n");
+  process.stdout.write("Logged out. Credential removed.\n");
 }

@@ -86,7 +86,7 @@ Examples:
 
 program
   .command("logout")
-  .description("Remove stored credentials from the OS keychain")
+  .description("Remove the stored Frame credential")
   .addHelpText(
     "after",
     `
