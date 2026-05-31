@@ -114,57 +114,6 @@ Examples:
     await run();
   });
 
-// ── logs ────────────────────────────────────────────────────────────────────────
-
-/** Accumulate comma-separated values across repeated --flag invocations. */
-function collectCsv(val: string, prev: string[]): string[] {
-  return [...prev, ...val.split(",").map((s) => s.trim())];
-}
-
-const logs = program.command("logs").description("Log streaming commands");
-
-logs
-  .command("tail")
-  .description("Stream real-time sandbox API request logs")
-  .addHelpText(
-    "after",
-    `
-Examples:
-  frame logs tail
-  frame logs tail --filter-status 4xx,5xx
-  frame logs tail --filter-method POST --filter-path '/transfers/*'
-  frame logs tail --json
-`,
-  )
-  .option(
-    "--filter-status <statuses>",
-    "Filter by status class or exact code, comma-separated (e.g. 4xx,5xx or 200)",
-    collectCsv,
-    [] as string[],
-  )
-  .option(
-    "--filter-method <methods>",
-    "Filter by HTTP method, comma-separated (e.g. POST,GET)",
-    collectCsv,
-    [] as string[],
-  )
-  .option("--filter-path <pattern>", "Filter by path glob (e.g. /transfers/*)")
-  .option("--json", "Output one JSON object per line (no color)")
-  .action(async (opts: {
-    filterStatus: string[];
-    filterMethod: string[];
-    filterPath?: string;
-    json?: boolean;
-  }) => {
-    const { run } = await import("./commands/logs-tail.js");
-    const runOpts: Parameters<typeof run>[0] = {};
-    if (opts.filterStatus.length) runOpts.filterStatus = opts.filterStatus;
-    if (opts.filterMethod.length) runOpts.filterMethod = opts.filterMethod;
-    if (opts.filterPath) runOpts.filterPath = opts.filterPath;
-    if (opts.json) runOpts.json = opts.json;
-    await run(runOpts);
-  });
-
 program
   .command("listen")
   .description("Forward sandbox webhook events to a local URL")

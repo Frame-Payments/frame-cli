@@ -187,7 +187,7 @@ describe("fake-cable-server wire constraints", () => {
   describe("Channel allow-list enforcement (allowedChannels)", () => {
     beforeEach(async () => {
       server = await createFakeCableServer({
-        allowedChannels: ["Cli::LogsChannel", "Cli::WebhookListenChannel"],
+        allowedChannels: ["Cli::WebhookListenChannel", "Cli::WebhookListenChannel"],
       });
     });
 
@@ -236,7 +236,7 @@ describe("fake-cable-server wire constraints", () => {
 
       ws.send(JSON.stringify({
         command: "subscribe",
-        identifier: JSON.stringify({ channel: "Cli::LogsChannel" }),
+        identifier: JSON.stringify({ channel: "Cli::WebhookListenChannel" }),
       }));
 
       const allFrames = await collectFrames(ws, (f) => f.some((raw) => raw.includes("confirm_subscription")));
@@ -287,7 +287,7 @@ describe("fake-cable-server wire constraints", () => {
   describe("createFullyWiredFakeCableServer", () => {
     it("enforces Authorization, Origin, and channel allow-list in one call", async () => {
       server = await createFullyWiredFakeCableServer("sk_fully_wired", [
-        "Cli::LogsChannel",
+        "Cli::WebhookListenChannel",
       ]);
 
       // No headers at all → 401
@@ -321,7 +321,7 @@ describe("fake-cable-server wire constraints", () => {
 
     it("accepts fully compliant connections and confirms allowed subscriptions", async () => {
       server = await createFullyWiredFakeCableServer("sk_fully_wired", [
-        "Cli::LogsChannel",
+        "Cli::WebhookListenChannel",
       ]);
 
       const { ws } = openRawWs(server.url, {
@@ -333,7 +333,7 @@ describe("fake-cable-server wire constraints", () => {
 
       ws.send(JSON.stringify({
         command: "subscribe",
-        identifier: JSON.stringify({ channel: "Cli::LogsChannel" }),
+        identifier: JSON.stringify({ channel: "Cli::WebhookListenChannel" }),
       }));
 
       const allFrames = await collectFrames(ws, (f) => f.some((raw) => raw.includes("confirm_subscription")));
