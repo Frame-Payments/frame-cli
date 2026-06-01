@@ -1,6 +1,6 @@
 # Frame CLI
 
-**Sandbox developer tooling for the [Frame](https://framepayments.com) API** — version 0.0.0 · sandbox only
+**Sandbox developer tooling for the [Frame](https://framepayments.com) API** — sandbox only
 
 Simulate payments and forward webhook events to a local server — all against the Frame sandbox, without touching live keys.
 
@@ -9,23 +9,24 @@ Simulate payments and forward webhook events to a local server — all against t
 ## Install
 
 ```bash
-npm i -g @frame-payments/cli
+brew install Frame-Payments/tap/frame
 ```
 
-**Requirements:** Node.js ≥ 20
-
-No global install? Use the `npx` escape hatch:
+Or tap first, then install:
 
 ```bash
-npx @frame-payments/cli <command>
+brew tap Frame-Payments/tap
+brew install frame
 ```
+
+**Requirements:** Homebrew (npm distribution coming — tracked in FRA-4028).
 
 ---
 
 ## Quickstart
 
 ```bash
-# 1. Authenticate (stores credentials in the OS keychain)
+# 1. Authenticate (stores credentials at ~/.config/frame/credentials.json, mode 0600)
 frame login
 
 # 2. Forward sandbox webhook events to your local server
@@ -45,7 +46,7 @@ Your local server receives webhook payloads within seconds of the events being p
 | Command | Description |
 |---|---|
 | [`frame login`](https://github.com/Frame-Payments/frame-cli#readme) | Authenticate with your Frame sandbox API key |
-| [`frame logout`](https://github.com/Frame-Payments/frame-cli#readme) | Remove stored credentials from the OS keychain |
+| [`frame logout`](https://github.com/Frame-Payments/frame-cli#readme) | Remove the stored Frame credential |
 | [`frame whoami`](https://github.com/Frame-Payments/frame-cli#readme) | Show the currently authenticated merchant |
 | [`frame listen`](https://github.com/Frame-Payments/frame-cli#readme) | Forward sandbox webhook events to a local URL |
 | [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
@@ -66,7 +67,7 @@ npx skills add Frame-Payments/frame-cli
 Or browse the skill directly at:
 [skills.sh/Frame-Payments/frame-cli/frame-cli](https://skills.sh/Frame-Payments/frame-cli/frame-cli)
 
-The skill documents all 7 commands, end-to-end workflows, and common gotchas (blocking commands, OS keychain in headless containers, deprecated vocabulary redirects).
+The skill documents all 7 commands, end-to-end workflows, and common gotchas (blocking commands, deprecated vocabulary redirects).
 
 ---
 
