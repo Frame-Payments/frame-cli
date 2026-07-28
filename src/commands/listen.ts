@@ -95,7 +95,12 @@ export async function run(opts: ListenOptions = {}): Promise<void> {
     );
   }
 
-  const wsUrl = opts.cableUrl ?? deriveCableUrl(resolveBaseUrl(cred));
+  // FRAME_CABLE_URL is the escape hatch for a broken or not-yet-provisioned
+  // ws. record — it must be a full ws(s):// URL including the /cable path.
+  const wsUrl =
+    opts.cableUrl ??
+    process.env.FRAME_CABLE_URL ??
+    deriveCableUrl(resolveBaseUrl(cred));
 
   // Build channel identifier params.
   // event_codes: empty array = "all events"; non-empty = server-side filter.
