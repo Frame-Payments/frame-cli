@@ -34,11 +34,11 @@ describe("generateResourceCommands", () => {
     expect(source).toContain("Payment method the funds are pulled from");
   });
 
-  it("turns allow-listed body arguments into positional arguments", () => {
+  it("turns an allow-listed body argument into a positional argument", () => {
     const source = generatedSource(fixtureSpec, fixtureAllowList);
     expect(source).toContain('"path": "/v1/accounts/{account_id}/capabilities"');
     expect(source).toMatch(
-      /"bodyArguments": \[\s*\{\s*"name": "capabilities",\s*"description": "Capabilities to request",\s*"variadic": true,\s*"choices": \[\s*"card_receive",\s*"bank_account_receive"\s*\]/
+      /"bodyArgument": \{\s*"name": "capabilities",\s*"description": "Capabilities to request",\s*"choices": \[\s*"card_receive",\s*"bank_account_receive"\s*\]/
     );
   });
 
@@ -48,7 +48,7 @@ describe("generateResourceCommands", () => {
         transfers: {
           description: "Core Transfers",
           columns: ["id"],
-          operations: { create: { operation: "POST /v2/transfers", arguments: ["nope"] } },
+          operations: { create: { operation: "POST /v2/transfers", argument: "nope" } },
         },
       },
     };
@@ -57,35 +57,18 @@ describe("generateResourceCommands", () => {
     );
   });
 
-  it("fails when a body argument is not a string or a list of strings", () => {
+  it("fails when a body argument is not a list of strings", () => {
     const allowList = {
       resources: {
         transfers: {
           description: "Core Transfers",
           columns: ["id"],
-          operations: { create: { operation: "POST /v2/transfers", arguments: ["confirm"] } },
+          operations: { create: { operation: "POST /v2/transfers", argument: "confirm" } },
         },
       },
     };
     expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
       /transfers create.*argument confirm/
-    );
-  });
-
-  it("fails when a list argument is not the last argument", () => {
-    const allowList = {
-      resources: {
-        transfers: {
-          description: "Core Transfers",
-          columns: ["id"],
-          operations: {
-            create: { operation: "POST /v2/transfers", arguments: ["line_items", "description"] },
-          },
-        },
-      },
-    };
-    expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
-      /transfers create.*argument line_items/
     );
   });
 

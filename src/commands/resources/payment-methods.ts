@@ -18,7 +18,6 @@ export const paymentMethods: ResourceDefinition = {
       "path": "/v1/payment_methods",
       "summary": "Create a PaymentMethod",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "type",
@@ -133,7 +132,6 @@ export const paymentMethods: ResourceDefinition = {
           "description": "Id of the PaymentMethod"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -143,7 +141,6 @@ export const paymentMethods: ResourceDefinition = {
       "path": "/v1/payment_methods",
       "summary": "List PaymentMethods",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "account",
@@ -199,7 +196,6 @@ export const paymentMethods: ResourceDefinition = {
           "description": "Id of the PaymentMethod"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -214,7 +210,6 @@ export const paymentMethods: ResourceDefinition = {
           "description": "Id of the PaymentMethod"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -229,7 +224,6 @@ export const paymentMethods: ResourceDefinition = {
           "description": "Id of the PaymentMethod"
         }
       ],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "account",
@@ -254,7 +248,6 @@ export const paymentMethods: ResourceDefinition = {
           "description": "Id of the PaymentMethod"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     }

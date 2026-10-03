@@ -20,21 +20,18 @@ export const capabilities: ResourceDefinition = {
           "description": "Id of the Account requesting the capabilities"
         }
       ],
-      "bodyArguments": [
-        {
-          "name": "capabilities",
-          "description": "Capabilities to request for the Account",
-          "variadic": true,
-          "choices": [
-            "card_receive",
-            "card_send",
-            "bank_account_receive",
-            "bank_account_send",
-            "kyc",
-            "kyc_prefill"
-          ]
-        }
-      ],
+      "bodyArgument": {
+        "name": "capabilities",
+        "description": "Capabilities to request for the Account",
+        "choices": [
+          "card_receive",
+          "card_send",
+          "bank_account_receive",
+          "bank_account_send",
+          "kyc",
+          "kyc_prefill"
+        ]
+      },
       "flags": [],
       "acceptsBody": true
     }

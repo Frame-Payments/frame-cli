@@ -11,7 +11,6 @@ import {
   sendsIdempotencyKey,
   type FlagDefinition,
   type OperationDefinition,
-  type Positional,
   type ResourceDefinition,
 } from "./definition.js";
 
@@ -65,12 +64,12 @@ function suppliedFlags(
 
 function requestPath(
   operation: OperationDefinition,
-  positionals: Positional[],
+  positionals: string[],
   options: Options
 ): string {
   const path = operation.pathParams.reduce(
     (current, param, index) =>
-      current.replace(`{${param.name}}`, encodeURIComponent(String(positionals[index] ?? ""))),
+      current.replace(`{${param.name}}`, encodeURIComponent(positionals[index] ?? "")),
     operation.path
   );
   const query = new URLSearchParams(
@@ -84,16 +83,14 @@ function requestPath(
 
 function requestBody(
   operation: OperationDefinition,
-  positionals: Positional[],
+  bodyArgumentValues: string[],
   options: Options
 ): JsonObject | undefined {
   if (!operation.acceptsBody) return undefined;
   const body = typeof options.body === "string" ? parseBodyOption(options.body) : {};
   for (const { flag, value } of suppliedFlags(operation, options, "body"))
     setPath(body, flag.path, value);
-  operation.bodyArguments.forEach(({ name }, index) => {
-    body[name] = positionals[operation.pathParams.length + index];
-  });
+  if (operation.bodyArgument !== undefined) body[operation.bodyArgument.name] = bodyArgumentValues;
   return body;
 }
 
@@ -105,11 +102,12 @@ function idempotencyKeyFor(operation: OperationDefinition, options: Options): st
 export async function executeOperation(
   resource: ResourceDefinition,
   operation: OperationDefinition,
-  positionals: Positional[],
+  positionals: string[],
+  bodyArgumentValues: string[],
   options: Options
 ): Promise<void> {
   const path = requestPath(operation, positionals, options);
-  const body = requestBody(operation, positionals, options);
+  const body = requestBody(operation, bodyArgumentValues, options);
   const idempotencyKey = idempotencyKeyFor(operation, options);
   const headers: Record<string, string> =
     idempotencyKey === undefined ? {} : { "Idempotency-Key": idempotencyKey };

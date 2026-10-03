@@ -1,5 +1,3 @@
-export type Positional = string | string[];
-
 export type FlagType = "string" | "integer" | "number" | "boolean";
 
 export interface FlagDefinition {
@@ -19,7 +17,6 @@ export interface PathParamDefinition {
 export interface BodyArgumentDefinition {
   name: string;
   description: string;
-  variadic: boolean;
   choices?: string[];
 }
 
@@ -29,7 +26,7 @@ export interface OperationDefinition {
   path: string;
   summary: string;
   pathParams: PathParamDefinition[];
-  bodyArguments: BodyArgumentDefinition[];
+  bodyArgument?: BodyArgumentDefinition;
   flags: FlagDefinition[];
   acceptsBody: boolean;
 }

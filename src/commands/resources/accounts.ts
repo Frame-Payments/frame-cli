@@ -16,7 +16,6 @@ export const accounts: ResourceDefinition = {
       "path": "/v1/accounts",
       "summary": "Create an Account",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "type",
@@ -213,7 +212,6 @@ export const accounts: ResourceDefinition = {
           "description": "Id of the Account"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -223,7 +221,6 @@ export const accounts: ResourceDefinition = {
       "path": "/v1/accounts",
       "summary": "List Accounts",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "type",

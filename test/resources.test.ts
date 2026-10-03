@@ -245,7 +245,6 @@ const createTransfer: ResourceDefinition = {
       path: "/v2/transfers",
       summary: "Create a Core Transfer",
       pathParams: [],
-      bodyArguments: [],
       acceptsBody: true,
       flags: [
         {

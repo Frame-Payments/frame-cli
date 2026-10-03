@@ -21,7 +21,6 @@ export const transfers: ResourceDefinition = {
       "path": "/v2/transfers",
       "summary": "List Core Transfers",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "limit",
@@ -59,7 +58,6 @@ export const transfers: ResourceDefinition = {
           "description": "Transfer id"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -69,7 +67,6 @@ export const transfers: ResourceDefinition = {
       "path": "/v2/transfers",
       "summary": "Create a Core Transfer",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "amount.value",
@@ -138,17 +135,14 @@ export const capabilities: ResourceDefinition = {
           "description": "Account id"
         }
       ],
-      "bodyArguments": [
-        {
-          "name": "capabilities",
-          "description": "Capabilities to request",
-          "variadic": true,
-          "choices": [
-            "card_receive",
-            "bank_account_receive"
-          ]
-        }
-      ],
+      "bodyArgument": {
+        "name": "capabilities",
+        "description": "Capabilities to request",
+        "choices": [
+          "card_receive",
+          "bank_account_receive"
+        ]
+      },
       "flags": [],
       "acceptsBody": true
     }

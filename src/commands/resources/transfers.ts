@@ -19,7 +19,6 @@ export const transfers: ResourceDefinition = {
       "path": "/v2/transfers",
       "summary": "List Core Transfers",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "limit",
@@ -84,7 +83,6 @@ export const transfers: ResourceDefinition = {
           "description": "Id of the Core Transfer"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -94,7 +92,6 @@ export const transfers: ResourceDefinition = {
       "path": "/v2/transfers",
       "summary": "Create a Core Transfer",
       "pathParams": [],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "amount.value",
@@ -171,7 +168,6 @@ export const transfers: ResourceDefinition = {
           "description": "Id of the Core Transfer"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -186,7 +182,6 @@ export const transfers: ResourceDefinition = {
           "description": "Id of the Core Transfer"
         }
       ],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "amount.value",
@@ -221,7 +216,6 @@ export const transfers: ResourceDefinition = {
           "description": "Id of the Core Transfer"
         }
       ],
-      "bodyArguments": [],
       "flags": [
         {
           "flag": "amount.value",
@@ -247,7 +241,6 @@ export const transfers: ResourceDefinition = {
           "description": "Id of the Core Transfer"
         }
       ],
-      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     }

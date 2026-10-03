@@ -12,7 +12,7 @@ resources:
     operations:
       request:
         operation: POST /v1/accounts/{account_id}/capabilities
-        arguments: [capabilities]
+        argument: capabilities
 deprecated:
   customers: accounts
   payouts: transfers

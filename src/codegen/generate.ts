@@ -152,26 +152,18 @@ function bodyArgument(
   spec: JsonObject,
   where: string,
   body: JsonObject | null,
-  name: string,
-  variadicAllowed: boolean
+  name: string
 ): BodyArgumentDefinition {
   const properties = body !== null && isObject(body.properties) ? body.properties : {};
-  if (!(name in properties))
-    throw new Error(`${where}: argument ${name} is not a field of the request body`);
   const property = resolve(spec, properties[name]);
-  const variadic = property.type === "array";
-  const scalar = variadic ? resolve(spec, property.items) : property;
-  if (scalar.type !== "string" || (variadic && !variadicAllowed)) {
+  const items = resolve(spec, property.items);
+  if (property.type !== "array" || items.type !== "string") {
     throw new Error(
-      `${where}: argument ${name} must be a string, or a list of strings as the last argument`
+      `${where}: argument ${name} must be a request body field holding a list of strings`
     );
   }
-  const argument: BodyArgumentDefinition = {
-    name,
-    description: describe(property.description),
-    variadic,
-  };
-  return withChoices(argument, scalar);
+  const argument: BodyArgumentDefinition = { name, description: describe(property.description) };
+  return withChoices(argument, items);
 }
 
 function assertNoCollisions(where: string, flags: FlagDefinition[]): void {
@@ -186,12 +178,12 @@ function assertNoCollisions(where: string, flags: FlagDefinition[]): void {
 function parseAllowListOperation(
   raw: unknown,
   where: string
-): { ref: string; argumentNames: string[] } {
-  if (typeof raw === "string") return { ref: raw, argumentNames: [] };
+): { ref: string; argumentName: string | undefined } {
+  if (typeof raw === "string") return { ref: raw, argumentName: undefined };
   const entry = asObject(raw, where);
   return {
     ref: asString(entry.operation, `${where}.operation`),
-    argumentNames: asStringList(entry.arguments ?? [], `${where}.arguments`),
+    argumentName: asString(entry.argument, `${where}.argument`),
   };
 }
 
@@ -202,7 +194,7 @@ function buildOperation(
   raw: unknown
 ): OperationDefinition {
   const where = `${resource} ${verb}`;
-  const { ref, argumentNames } = parseAllowListOperation(raw, `allow-list ${where}`);
+  const { ref, argumentName } = parseAllowListOperation(raw, `allow-list ${where}`);
   const { method, path } = parseOperationRef(ref, where);
   const paths = asObject(spec.paths, "OpenAPI paths");
   const pathItem = paths[path];
@@ -215,15 +207,7 @@ function buildOperation(
 
   const params = collectParameters(spec, pathItem, operation);
   const body = requestSchema(spec, operation);
-  const bodyArguments = argumentNames.map((name, index) =>
-    bodyArgument(spec, where, body, name, index === argumentNames.length - 1)
-  );
-  const flags = [
-    ...queryFlags(spec, params),
-    ...(body === null ? [] : bodyFlags(spec, body, [])).filter(
-      ({ path: [field] }) => field === undefined || !argumentNames.includes(field)
-    ),
-  ];
+  const flags = [...queryFlags(spec, params), ...(body === null ? [] : bodyFlags(spec, body, []))];
   assertNoCollisions(where, flags);
 
   return {
@@ -232,7 +216,9 @@ function buildOperation(
     path,
     summary: describe(operation.summary, operation.description),
     pathParams: pathParamsFor(spec, path, params),
-    bodyArguments,
+    ...(argumentName === undefined
+      ? {}
+      : { bodyArgument: bodyArgument(spec, where, body, argumentName) }),
     flags,
     acceptsBody: body !== null,
   };
@@ -245,8 +231,8 @@ function buildResource(spec: JsonObject, command: string, raw: unknown): Resourc
     command,
     description: asString(entry.description, `allow-list ${command}.description`),
     columns: asStringList(entry.columns, `allow-list ${command}.columns`),
-    operations: Object.entries(operations).map(([verb, raw]) =>
-      buildOperation(spec, command, verb, raw)
+    operations: Object.entries(operations).map(([verb, operation]) =>
+      buildOperation(spec, command, verb, operation)
     ),
   };
 }

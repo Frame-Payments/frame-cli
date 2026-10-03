@@ -99,7 +99,7 @@ Start with [`CONTEXT.md`](./CONTEXT.md) for the canonical-vs-deprecated vocabula
 
 A CI test validates the skill frontmatter.
 
-**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. An operation written as `{ operation, arguments }` turns the named request-body fields into positional arguments (a list field must come last). Operations missing from the allow-list never get a command; CI fails if the generated files drift.
+**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. An operation written as `{ operation, argument }` turns the named list-of-strings request-body field into a trailing positional argument. Operations missing from the allow-list never get a command; CI fails if the generated files drift.
 
 ---
 
