@@ -126,7 +126,8 @@ async function settle(
   const retrieve = retrieveOperation(resource);
   return pollUntilTerminal(
     response,
-    (id) => client.send(retrieve.method, requestPath(retrieve, [id], {})),
+    (id, signal) =>
+      client.send(retrieve.method, requestPath(retrieve, [id], {}), undefined, {}, signal),
     {
       terminalStatuses: wait.terminalStatuses,
       intervalMs: Number(options.interval),

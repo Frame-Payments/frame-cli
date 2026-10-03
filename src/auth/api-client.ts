@@ -122,7 +122,8 @@ export interface ApiClient {
     method: string,
     path: string,
     body?: unknown,
-    headers?: Record<string, string>
+    headers?: Record<string, string>,
+    signal?: AbortSignal
   ): Promise<ApiResponse>;
   get<T = unknown>(path: string): Promise<T>;
   post<T = unknown>(path: string, body?: unknown): Promise<T>;
@@ -202,7 +203,8 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     method: string,
     path: string,
     reqBody?: unknown,
-    extraHeaders: Record<string, string> = {}
+    extraHeaders: Record<string, string> = {},
+    signal?: AbortSignal
   ): Promise<ApiResponse> {
     const url = `${base}${path}`;
     const resp = await fetch(url, {
@@ -213,6 +215,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
         "Content-Type": "application/json",
       },
       ...(reqBody !== undefined ? { body: JSON.stringify(reqBody) } : {}),
+      ...(signal !== undefined ? { signal } : {}),
     });
 
     const rawText = await resp.text();

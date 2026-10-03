@@ -23,26 +23,27 @@ function statusOf(response: ApiResponse): string {
 
 export async function pollUntilTerminal(
   initial: ApiResponse,
-  retrieve: (id: string) => Promise<ApiResponse>,
+  retrieve: (id: string, signal: AbortSignal) => Promise<ApiResponse>,
   { terminalStatuses, intervalMs, timeoutMs, onStatus }: PollOptions
 ): Promise<ApiResponse> {
   const id = idOf(initial);
-  const deadline = performance.now() + timeoutMs;
+  const deadline = AbortSignal.timeout(timeoutMs);
   let latest = initial;
   let status = statusOf(latest);
   onStatus(id, status);
-  while (!terminalStatuses.includes(status)) {
-    const remainingMs = deadline - performance.now();
-    if (remainingMs <= 0) {
-      throw new WaitTimeoutError(
-        `Timed out after ${timeoutMs}ms waiting for ${id} to reach ${terminalStatuses.join(", ")}; last status: ${status}.`
-      );
+  try {
+    while (!terminalStatuses.includes(status)) {
+      await sleep(intervalMs, undefined, { signal: deadline });
+      latest = await retrieve(id, deadline);
+      const next = statusOf(latest);
+      if (next !== status) onStatus(id, next);
+      status = next;
     }
-    await sleep(Math.min(intervalMs, remainingMs));
-    latest = await retrieve(id);
-    const next = statusOf(latest);
-    if (next !== status) onStatus(id, next);
-    status = next;
+  } catch (err) {
+    if (!deadline.aborted) throw err;
+    throw new WaitTimeoutError(
+      `Timed out after ${timeoutMs}ms waiting for ${id} to reach ${terminalStatuses.join(", ")}; last status: ${status}.`
+    );
   }
   return latest;
 }

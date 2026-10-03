@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { Command } from "commander";
 
 vi.mock("../src/auth/keyring.js", () => ({
@@ -33,6 +34,7 @@ interface StubResponse {
   status: number;
   body: string;
   headers?: Record<string, string>;
+  delayMs?: number;
 }
 
 let server: Server;
@@ -60,6 +62,7 @@ beforeAll(async () => {
       receivedAt: performance.now(),
     });
     const response = queuedResponses.shift() ?? nextResponse;
+    if (response.delayMs !== undefined) await sleep(response.delayMs);
     res.writeHead(response.status, {
       "Content-Type": "application/json",
       ...response.headers,
@@ -618,6 +621,25 @@ describe("--wait", () => {
     expect(code).toBe(3);
     expect(stdout).toBe("");
     expect(stderr).toMatch(/Timed out.*tr_1.*last status: processing/);
+  });
+
+  it("exits 3 at the timeout while a retrieve is still in flight", async () => {
+    queuedResponses = [transferIn("processing"), { ...transferIn("completed"), delayMs: 2000 }];
+    const startedAt = performance.now();
+
+    const code = await frame([
+      "transfers",
+      "create",
+      "--wait",
+      "--interval",
+      "10ms",
+      "--timeout",
+      "200ms",
+    ]);
+
+    expect(code).toBe(3);
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+    expect(stderr).toMatch(/last status: processing/);
   });
 
   it("spaces retrieves by --interval", async () => {
