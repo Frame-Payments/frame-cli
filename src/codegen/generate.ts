@@ -19,6 +19,16 @@ export interface GeneratedFile {
 const HTTP_METHODS: readonly string[] = ["get", "post", "put", "patch", "delete"];
 const SCALAR_TYPES: readonly FlagType[] = ["string", "integer", "number", "boolean"];
 const DEFINITION_MODULE = "../../resources/definition.js";
+const CANONICAL_RESOURCES: readonly string[] = [
+  "accounts",
+  "capabilities",
+  "transfers",
+  "payment-methods",
+  "refunds",
+  "webhooks",
+  "products",
+  "invoices",
+];
 
 function asObject(value: unknown, what: string): JsonObject {
   if (!isObject(value)) throw new Error(`${what} must be an object`);
@@ -176,15 +186,23 @@ function assertNoCollisions(where: string, flags: FlagDefinition[]): void {
   }
 }
 
-function parseAllowListOperation(
-  raw: unknown,
-  where: string
-): { ref: string; argumentName: string | undefined } {
-  if (typeof raw === "string") return { ref: raw, argumentName: undefined };
+interface AllowListOperation {
+  ref: string;
+  argumentName?: string;
+  columns?: string[];
+}
+
+function parseAllowListOperation(raw: unknown, where: string): AllowListOperation {
+  if (typeof raw === "string") return { ref: raw };
   const entry = asObject(raw, where);
   return {
     ref: asString(entry.operation, `${where}.operation`),
-    argumentName: asString(entry.argument, `${where}.argument`),
+    ...(entry.argument === undefined
+      ? {}
+      : { argumentName: asString(entry.argument, `${where}.argument`) }),
+    ...(entry.columns === undefined
+      ? {}
+      : { columns: asStringList(entry.columns, `${where}.columns`) }),
   };
 }
 
@@ -195,7 +213,7 @@ function buildOperation(
   raw: unknown
 ): OperationDefinition {
   const where = `${resource} ${verb}`;
-  const { ref, argumentName } = parseAllowListOperation(raw, `allow-list ${where}`);
+  const { ref, argumentName, columns } = parseAllowListOperation(raw, `allow-list ${where}`);
   const { method, path } = parseOperationRef(ref, where);
   const paths = asObject(spec.paths, "OpenAPI paths");
   const pathItem = paths[path];
@@ -222,6 +240,7 @@ function buildOperation(
       : { bodyArgument: bodyArgument(spec, where, body, argumentName) }),
     flags,
     acceptsBody: body !== null,
+    ...(columns === undefined ? {} : { columns }),
   };
 }
 
@@ -244,14 +263,28 @@ function buildWait(command: string, raw: unknown, verbs: string[]): WaitDefiniti
   };
 }
 
+function tagDescription(spec: JsonObject, command: string, tag: string): string {
+  const tags = Array.isArray(spec.tags) ? spec.tags.filter(isObject) : [];
+  const description = describe(tags.find((candidate) => candidate.name === tag)?.description);
+  if (description === "") {
+    throw new Error(`allow-list ${command}: tag ${tag} has no description in the OpenAPI document`);
+  }
+  return description;
+}
+
 function buildResource(spec: JsonObject, command: string, raw: unknown): ResourceDefinition {
+  if (!CANONICAL_RESOURCES.includes(command)) {
+    throw new Error(
+      `allow-list resource ${command} is not in the canonical set: ${CANONICAL_RESOURCES.join(", ")}`
+    );
+  }
   const entry = asObject(raw, `allow-list resource ${command}`);
   const operations = Object.entries(
     asObject(entry.operations, `allow-list ${command}.operations`)
   ).map(([verb, operation]) => buildOperation(spec, command, verb, operation));
   return {
     command,
-    description: asString(entry.description, `allow-list ${command}.description`),
+    description: tagDescription(spec, command, asString(entry.tag, `allow-list ${command}.tag`)),
     columns: asStringList(entry.columns, `allow-list ${command}.columns`),
     operations,
     ...(entry.wait === undefined

@@ -8,7 +8,9 @@ description: >
   customer, charge_intent, payout, charge — all map to canonical surfaces
   (accounts, transfers, refunds). Sandbox-only: live credentials are rejected at
   runtime. Core commands: frame login, frame logout, frame whoami, frame listen,
-  frame events resend <evt_id>, frame open [page].
+  frame events resend <evt_id>, frame open [page], and resource commands for
+  transfers, payment-methods, accounts, capabilities, refunds, webhooks,
+  products and invoices.
 compatibility: >
   Requires `frame` on PATH (npm install -g @frame-payments/cli). Reads/writes OS
   keychain (keytar) for credential storage — may fail in headless containers
@@ -71,6 +73,13 @@ or `dbus-launch`).
 | `frame payment-methods block\|unblock\|attach\|detach <id>` | Member actions on a PaymentMethod |
 | `frame accounts create\|list\|retrieve` | Manage Accounts |
 | `frame capabilities request <account_id> <capabilities...>` | Request Capabilities for an Account |
+| `frame refunds create\|list\|retrieve` | Manage Refunds of completed inbound Core Transfers |
+| `frame webhooks create <events...>` | Register a Webhook endpoint for the given event codes (`--url`) |
+| `frame webhooks list\|retrieve\|update\|delete\|rotate-secret` | Manage Webhook endpoints; `rotate-secret` returns a new signing secret |
+| `frame products create\|list\|retrieve\|update\|delete\|search` | Manage Products |
+| `frame invoices create\|list\|retrieve\|update\|issue` | Manage Invoices |
+| `frame invoices list-line-items <invoice_id>` | List an Invoice's line items |
+| `frame invoices create-line-item\|retrieve-line-item\|update-line-item\|delete-line-item` | Manage the line items of a draft Invoice |
 | `frame open [page]` | Open a Frame dashboard page in the browser |
 
 ---
@@ -148,6 +157,24 @@ the last observed status.
 ```bash
 frame transfers create --amount.value 2500 --amount.currency usd \
   --source.payment_method_id "$PM" --confirm --wait --json | jq -r .status
+```
+
+### Refunds, webhooks, products and invoices
+Same flags, `--json`, errors and `Idempotency-Key` behaviour as above; `update`
+and `delete` send `PATCH`/`DELETE` without a key. `frame webhooks create` takes
+the event codes as arguments. Invoice line items are verbs on `frame invoices`
+taking the invoice id first, and print line item columns.
+
+```bash
+frame refunds create --transfer tr_abc123 --amount 500 --reason duplicate
+frame webhooks create transfer.completed refund.created --url https://example.com/hooks
+frame webhooks rotate-secret we_abc123 --json | jq -r .secret
+PROD=$(frame products create --name Mug --default_price 900 --purchase_type one_time \
+  --json | jq -r .id)
+INV=$(frame invoices create --account "$ACCT" --collection_method request_payment \
+  --json | jq -r .id)
+frame invoices create-line-item "$INV" --product "$PROD" --quantity 2
+frame invoices issue "$INV"
 ```
 
 `frame customers`, `frame charge-intents` and `frame payouts` are deprecated

@@ -167,7 +167,9 @@ export async function executeOperation(
       if (replay !== null) process.stderr.write(`Idempotent-Replay: ${replay}\n`);
       const settled = await settle(client, resource, operation, response, options);
       process.stdout.write(
-        options.json === true ? settled.text : renderTable(resource.columns, rowsOf(settled.body))
+        options.json === true
+          ? settled.text
+          : renderTable(operation.columns ?? resource.columns, rowsOf(settled.body))
       );
     }
   );

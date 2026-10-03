@@ -4,6 +4,23 @@ info:
   version: "2025-01-01"
 servers:
   - url: https://api.framepayments.com
+tags:
+  - name: Transfers
+    description: Core Transfers — money movement in either direction
+  - name: PaymentMethods
+    description: PaymentMethods — cards and bank accounts a Transfer moves money from or to
+  - name: Accounts
+    description: Accounts — the parties a merchant transacts with
+  - name: Capabilities
+    description: Capabilities — permissions an Account requests
+  - name: Refunds
+    description: Refunds — reversals of completed inbound Core Transfers
+  - name: WebhookEndpoints
+    description: Webhooks — endpoints that receive your events
+  - name: Products
+    description: Products — goods and services you bill for
+  - name: Invoices
+    description: Invoices — bills sent to an Account, with their line items
 paths:
   /v2/transfers:
     get:
@@ -468,6 +485,534 @@ paths:
                 $ref: "#/components/schemas/CapabilityList"
         "422":
           $ref: "#/components/responses/Error"
+  /v1/refunds:
+    get:
+      operationId: listRefunds
+      summary: List Refunds
+      tags: [Refunds]
+      parameters:
+        - name: transfer
+          in: query
+          description: Only return refunds of this Core Transfer id
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of refunds to return (1-100)
+          schema:
+            type: integer
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A page of Refunds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundList"
+    post:
+      operationId: createRefund
+      summary: Refund a completed inbound Core Transfer
+      tags: [Refunds]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundCreate"
+      responses:
+        "201":
+          description: The created Refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refund"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/refunds/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Refund
+        schema:
+          type: string
+    get:
+      operationId: retrieveRefund
+      summary: Retrieve a Refund
+      tags: [Refunds]
+      responses:
+        "200":
+          description: The Refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refund"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/webhook_endpoints:
+    get:
+      operationId: listWebhookEndpoints
+      summary: List Webhook endpoints
+      tags: [WebhookEndpoints]
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of endpoints to return (1-100)
+          schema:
+            type: integer
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A page of Webhook endpoints
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookEndpointList"
+    post:
+      operationId: createWebhookEndpoint
+      summary: Create a Webhook endpoint
+      tags: [WebhookEndpoints]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEndpointCreate"
+      responses:
+        "201":
+          description: The created Webhook endpoint, including its signing secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookEndpoint"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/webhook_endpoints/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Webhook endpoint
+        schema:
+          type: string
+    get:
+      operationId: retrieveWebhookEndpoint
+      summary: Retrieve a Webhook endpoint
+      tags: [WebhookEndpoints]
+      responses:
+        "200":
+          description: The Webhook endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookEndpoint"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateWebhookEndpoint
+      summary: Update a Webhook endpoint
+      tags: [WebhookEndpoints]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEndpointUpdate"
+      responses:
+        "200":
+          description: The updated Webhook endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookEndpoint"
+        "422":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteWebhookEndpoint
+      summary: Delete a Webhook endpoint
+      tags: [WebhookEndpoints]
+      responses:
+        "200":
+          description: The deleted Webhook endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deleted"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/webhook_endpoints/{id}/rotate_secret:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Webhook endpoint
+        schema:
+          type: string
+    post:
+      operationId: rotateWebhookEndpointSecret
+      summary: Replace a Webhook endpoint's signing secret with a new one
+      tags: [WebhookEndpoints]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The Webhook endpoint with its new signing secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookEndpoint"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/products:
+    get:
+      operationId: listProducts
+      summary: List Products
+      tags: [Products]
+      parameters:
+        - name: active
+          in: query
+          description: Only return active (true) or archived (false) products
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          description: Maximum number of products to return (1-100)
+          schema:
+            type: integer
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A page of Products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductList"
+    post:
+      operationId: createProduct
+      summary: Create a Product
+      tags: [Products]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductCreate"
+      responses:
+        "201":
+          description: The created Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/products/search:
+    get:
+      operationId: searchProducts
+      summary: Search Products by name
+      tags: [Products]
+      parameters:
+        - name: name
+          in: query
+          description: Text to match against product names
+          schema:
+            type: string
+        - name: active
+          in: query
+          description: Only return active (true) or archived (false) products
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Matching Products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductList"
+  /v1/products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Product
+        schema:
+          type: string
+    get:
+      operationId: retrieveProduct
+      summary: Retrieve a Product
+      tags: [Products]
+      responses:
+        "200":
+          description: The Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateProduct
+      summary: Update a Product
+      tags: [Products]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: The updated Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "422":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteProduct
+      summary: Delete a Product
+      tags: [Products]
+      responses:
+        "200":
+          description: The deleted Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deleted"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/invoices:
+    get:
+      operationId: listInvoices
+      summary: List Invoices
+      tags: [Invoices]
+      parameters:
+        - name: account
+          in: query
+          description: Only return invoices billed to this Account id
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Only return invoices with this status
+          schema:
+            type: string
+            enum: [draft, outstanding, due, overdue, paid, written_off, voided]
+        - name: limit
+          in: query
+          description: Maximum number of invoices to return (1-100)
+          schema:
+            type: integer
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A page of Invoices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceList"
+    post:
+      operationId: createInvoice
+      summary: Create a draft Invoice
+      tags: [Invoices]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceCreate"
+      responses:
+        "201":
+          description: The created Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/invoices/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Invoice
+        schema:
+          type: string
+    get:
+      operationId: retrieveInvoice
+      summary: Retrieve an Invoice
+      tags: [Invoices]
+      responses:
+        "200":
+          description: The Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateInvoice
+      summary: Update a draft Invoice
+      tags: [Invoices]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceUpdate"
+      responses:
+        "200":
+          description: The updated Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/invoices/{id}/issue:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Invoice
+        schema:
+          type: string
+    post:
+      operationId: issueInvoice
+      summary: Issue a draft Invoice to its Account
+      tags: [Invoices]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The issued Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/invoices/{invoice_id}/line_items:
+    parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        description: Id of the Invoice
+        schema:
+          type: string
+    get:
+      operationId: listInvoiceLineItems
+      summary: List an Invoice's line items
+      tags: [Invoices]
+      responses:
+        "200":
+          description: The Invoice's line items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceLineItemList"
+    post:
+      operationId: createInvoiceLineItem
+      summary: Add a line item to a draft Invoice
+      tags: [Invoices]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceLineItemCreate"
+      responses:
+        "201":
+          description: The created line item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceLineItem"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/invoices/{invoice_id}/line_items/{id}:
+    parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        description: Id of the Invoice
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Id of the line item
+        schema:
+          type: string
+    get:
+      operationId: retrieveInvoiceLineItem
+      summary: Retrieve an Invoice line item
+      tags: [Invoices]
+      responses:
+        "200":
+          description: The line item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceLineItem"
+        "404":
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateInvoiceLineItem
+      summary: Update a line item on a draft Invoice
+      tags: [Invoices]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceLineItemUpdate"
+      responses:
+        "200":
+          description: The updated line item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceLineItem"
+        "422":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteInvoiceLineItem
+      summary: Remove a line item from a draft Invoice
+      tags: [Invoices]
+      responses:
+        "200":
+          description: The deleted line item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deleted"
+        "404":
+          $ref: "#/components/responses/Error"
   /v1/transfers:
     get:
       operationId: listV1Transfers
@@ -813,6 +1358,351 @@ components:
           items:
             type: string
             enum: [card_receive, card_send, bank_account_receive, bank_account_send, kyc, kyc_prefill]
+    Deleted:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        deleted:
+          type: boolean
+    Refund:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        status:
+          type: string
+        amount:
+          type: integer
+        currency:
+          type: string
+        transfer_id:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        failure_code:
+          type: string
+          nullable: true
+        created:
+          type: integer
+    RefundList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Refund"
+        meta:
+          type: object
+    RefundCreate:
+      type: object
+      required: [transfer]
+      properties:
+        transfer:
+          type: string
+          description: Id of the completed inbound Core Transfer to refund
+        amount:
+          type: integer
+          description: Amount to refund in the smallest currency unit; defaults to the full amount
+        reason:
+          type: string
+          description: Why the transfer is being refunded
+          enum: [duplicate, fraudulent, requested_by_customer, expired_uncaptured_charge]
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    WebhookEndpoint:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        url:
+          type: string
+        status:
+          type: string
+          enum: [enabled, disabled]
+        events:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+          nullable: true
+        secret:
+          type: string
+          description: Signing secret; returned on create and rotate_secret only
+    WebhookEndpointList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookEndpoint"
+        meta:
+          type: object
+    WebhookEndpointCreate:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          description: HTTPS URL the events are delivered to
+        events:
+          type: array
+          description: Event codes to deliver to the endpoint
+          items:
+            type: string
+        description:
+          type: string
+          description: Free-text description of the endpoint
+    WebhookEndpointUpdate:
+      type: object
+      properties:
+        url:
+          type: string
+          description: HTTPS URL the events are delivered to
+        events:
+          type: array
+          description: Event codes to deliver to the endpoint
+          items:
+            type: string
+        description:
+          type: string
+          description: Free-text description of the endpoint
+        status:
+          type: string
+          description: Pause (disabled) or resume (enabled) deliveries
+          enum: [enabled, disabled]
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        default_price:
+          type: integer
+        purchase_type:
+          type: string
+          enum: [one_time, recurring]
+        recurring_interval:
+          type: string
+          nullable: true
+        created:
+          type: integer
+    ProductList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        meta:
+          type: object
+    ProductCreate:
+      type: object
+      required: [name, default_price, purchase_type]
+      properties:
+        name:
+          type: string
+          description: Name shown to the buyer
+        description:
+          type: string
+          description: Longer description shown to the buyer
+        default_price:
+          type: integer
+          description: Price in the smallest currency unit
+        purchase_type:
+          type: string
+          description: Sold once or on a recurring schedule
+          enum: [one_time, recurring]
+        recurring_interval:
+          type: string
+          description: Billing interval of a recurring product
+          enum: [daily, weekly, monthly, every_3_months, every_6_months, yearly]
+        shippable:
+          type: boolean
+          description: Whether the product is physically shipped
+        url:
+          type: string
+          description: Public URL of the product
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    ProductUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name shown to the buyer
+        description:
+          type: string
+          description: Longer description shown to the buyer
+        default_price:
+          type: integer
+          description: Price in the smallest currency unit
+        active:
+          type: boolean
+          description: Archive (false) or restore (true) the product
+        shippable:
+          type: boolean
+          description: Whether the product is physically shipped
+        url:
+          type: string
+          description: Public URL of the product
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        number:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, outstanding, due, overdue, paid, written_off, voided]
+        account_id:
+          type: string
+        total:
+          type: integer
+        currency:
+          type: string
+        due_date:
+          type: string
+          nullable: true
+        created:
+          type: integer
+    InvoiceList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        meta:
+          type: object
+    InvoiceCreate:
+      type: object
+      required: [account, collection_method]
+      properties:
+        account:
+          type: string
+          description: Id of the Account the invoice is billed to
+        collection_method:
+          type: string
+          description: Charge the Account's default PaymentMethod or email a payment request
+          enum: [auto_charge, request_payment]
+        net_terms:
+          type: integer
+          description: Days after issue until the invoice is due
+        number:
+          type: string
+          description: Your own invoice number; generated when omitted
+        description:
+          type: string
+          description: Free-text description shown on the invoice
+        memo:
+          type: string
+          description: Note printed at the bottom of the invoice
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    InvoiceUpdate:
+      type: object
+      properties:
+        collection_method:
+          type: string
+          description: Charge the Account's default PaymentMethod or email a payment request
+          enum: [auto_charge, request_payment]
+        net_terms:
+          type: integer
+          description: Days after issue until the invoice is due
+        number:
+          type: string
+          description: Your own invoice number
+        description:
+          type: string
+          description: Free-text description shown on the invoice
+        memo:
+          type: string
+          description: Note printed at the bottom of the invoice
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    InvoiceLineItem:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        product_id:
+          type: string
+          nullable: true
+        description:
+          type: string
+        quantity:
+          type: integer
+        unit_amount:
+          type: integer
+        amount:
+          type: integer
+    InvoiceLineItemList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineItem"
+        meta:
+          type: object
+    InvoiceLineItemCreate:
+      type: object
+      required: [product, quantity]
+      properties:
+        product:
+          type: string
+          description: Id of the Product being billed
+        quantity:
+          type: integer
+          description: Number of units
+        description:
+          type: string
+          description: Line description; defaults to the product name
+        unit_amount:
+          type: integer
+          description: Price per unit in the smallest currency unit; defaults to the product price
+    InvoiceLineItemUpdate:
+      type: object
+      properties:
+        quantity:
+          type: integer
+          description: Number of units
+        description:
+          type: string
+          description: Line description
+        unit_amount:
+          type: integer
+          description: Price per unit in the smallest currency unit
     Error:
       type: object
       properties:

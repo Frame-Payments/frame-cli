@@ -67,6 +67,22 @@ describe("skills/frame-cli/SKILL.md", () => {
 
 
 
+  it.each([
+    "frame transfers",
+    "frame payment-methods",
+    "frame accounts",
+    "frame capabilities",
+    "frame refunds create|list|retrieve",
+    "frame webhooks create <events...>",
+    "frame webhooks list|retrieve|update|delete|rotate-secret",
+    "frame products create|list|retrieve|update|delete|search",
+    "frame invoices create|list|retrieve|update|issue",
+    "frame invoices list-line-items <invoice_id>",
+    "frame invoices create-line-item|retrieve-line-item|update-line-item|delete-line-item",
+  ])("documents %s", (command) => {
+    expect(body.replaceAll("\\|", "|")).toContain(command);
+  });
+
   it("body contains a Gotchas section", () => {
     expect(body).toContain("Gotchas");
   });

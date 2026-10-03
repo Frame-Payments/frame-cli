@@ -42,11 +42,33 @@ describe("generateResourceCommands", () => {
     );
   });
 
+  it("gives an operation its own table columns when the allow-list names them", () => {
+    const allowList = {
+      resources: {
+        transfers: {
+          tag: "Transfers",
+          columns: ["id"],
+          operations: {
+            list: "GET /v2/transfers",
+            confirm: { operation: "POST /v2/transfers/{id}/confirm", columns: ["id", "status"] },
+          },
+        },
+      },
+    };
+    const [transfers] = generateResourceCommands(fixtureSpec, allowList);
+    expect(transfers!.contents).toMatch(
+      /"verb": "confirm",[\s\S]*"columns": \[\s*"id",\s*"status"\s*\]/
+    );
+    expect(transfers!.contents).not.toMatch(
+      /"verb": "list",[\s\S]*"columns"[\s\S]*"verb": "confirm"/
+    );
+  });
+
   it("fails when a body argument is not a field of the request body", () => {
     const allowList = {
       resources: {
         transfers: {
-          description: "Core Transfers",
+          tag: "Transfers",
           columns: ["id"],
           operations: { create: { operation: "POST /v2/transfers", argument: "nope" } },
         },
@@ -61,7 +83,7 @@ describe("generateResourceCommands", () => {
     const allowList = {
       resources: {
         transfers: {
-          description: "Core Transfers",
+          tag: "Transfers",
           columns: ["id"],
           operations: { create: { operation: "POST /v2/transfers", argument: "confirm" } },
         },
@@ -72,11 +94,51 @@ describe("generateResourceCommands", () => {
     );
   });
 
+  it.each(["customers", "coupons"])(
+    "fails when the allow-list names %s, a resource outside the canonical set",
+    (command) => {
+      const allowList = {
+        resources: {
+          [command]: {
+            tag: "Transfers",
+            columns: ["id"],
+            operations: { list: "GET /v2/transfers" },
+          },
+        },
+      };
+      expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
+        new RegExp(`${command}.*canonical`)
+      );
+    }
+  );
+
+  it("describes each resource with its spec tag's description", () => {
+    const source = generatedSource(fixtureSpec, fixtureAllowList);
+    expect(source).toContain(
+      '"description": "Core Transfers — money movement in either direction"'
+    );
+  });
+
+  it("fails when a resource's tag has no description in the spec", () => {
+    const allowList = {
+      resources: {
+        transfers: {
+          tag: "Teleports",
+          columns: ["id"],
+          operations: { list: "GET /v2/transfers" },
+        },
+      },
+    };
+    expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
+      /transfers.*tag Teleports/
+    );
+  });
+
   it("fails when an allow-listed operation is missing from the spec", () => {
     const allowList = {
       resources: {
         transfers: {
-          description: "Core Transfers",
+          tag: "Transfers",
           columns: ["id"],
           operations: { cancel: "POST /v2/transfers/{id}/cancel" },
         },

@@ -58,6 +58,13 @@ Your local server receives webhook payloads within seconds of the events being p
 | [`frame payment-methods block\|unblock\|attach\|detach <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Run a member action on a PaymentMethod |
 | [`frame accounts create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Accounts |
 | [`frame capabilities request <account_id> <capabilities...>`](https://github.com/Frame-Payments/frame-cli#readme) | Request Capabilities for an Account |
+| [`frame refunds create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Refunds of completed inbound Core Transfers |
+| [`frame webhooks create <events...>`](https://github.com/Frame-Payments/frame-cli#readme) | Register a Webhook endpoint for the given event codes (`--url`) |
+| [`frame webhooks list\|retrieve\|update\|delete\|rotate-secret`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Webhook endpoints; `rotate-secret` returns a new signing secret |
+| [`frame products create\|list\|retrieve\|update\|delete\|search`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Products |
+| [`frame invoices create\|list\|retrieve\|update\|issue`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Invoices |
+| [`frame invoices list-line-items <invoice_id>`](https://github.com/Frame-Payments/frame-cli#readme) | List an Invoice's line items |
+| [`frame invoices create-line-item\|retrieve-line-item\|update-line-item\|delete-line-item`](https://github.com/Frame-Payments/frame-cli#readme) | Manage the line items of a draft Invoice |
 | [`frame open [page]`](https://github.com/Frame-Payments/frame-cli#readme) | Open a dashboard page in the default browser |
 
 Run `frame <command> --help` for options and examples on any command.
@@ -99,7 +106,7 @@ Start with [`CONTEXT.md`](./CONTEXT.md) for the canonical-vs-deprecated vocabula
 
 A CI test validates the skill frontmatter.
 
-**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. An operation written as `{ operation, argument }` turns the named list-of-strings request-body field into a trailing positional argument. A resource's `wait: { terminal_statuses, operations }` entry adds `--wait`, `--interval` and `--timeout` to those operations, polling its `retrieve` until the status is terminal. Operations missing from the allow-list never get a command; CI fails if the generated files drift.
+**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. A resource's `--help` description is the description of its spec `tag`. An operation written as `{ operation, argument }` turns the named list-of-strings request-body field into a trailing positional argument; `{ operation, columns }` gives it its own table columns. A resource's `wait: { terminal_statuses, operations }` entry adds `--wait`, `--interval` and `--timeout` to those operations, polling its `retrieve` until the status is terminal. Only the canonical resources (transfers, payment-methods, accounts, capabilities, refunds, webhooks, products, invoices) may appear in the allow-list. Operations missing from the allow-list never get a command; CI fails if the generated files drift.
 
 ---
 

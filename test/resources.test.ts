@@ -698,6 +698,224 @@ describe("--wait", () => {
   });
 });
 
+describe("refunds, webhooks, products and invoices", () => {
+  beforeEach(() => {
+    nextResponse = { status: 200, body: JSON.stringify({ id: "obj_1" }) };
+  });
+
+  it.each([
+    [["refunds", "create", "--transfer", "tr_1"], "/v1/refunds"],
+    [
+      ["webhooks", "create", "transfer.completed", "--url", "https://x.test"],
+      "/v1/webhook_endpoints",
+    ],
+    [["webhooks", "rotate-secret", "we_1"], "/v1/webhook_endpoints/we_1/rotate_secret"],
+    [["products", "create", "--name", "Mug"], "/v1/products"],
+    [["invoices", "create", "--account", "acct_1"], "/v1/invoices"],
+    [["invoices", "issue", "inv_1"], "/v1/invoices/inv_1/issue"],
+    [
+      ["invoices", "create-line-item", "inv_1", "--product", "prod_1"],
+      "/v1/invoices/inv_1/line_items",
+    ],
+  ])("frame %j POSTs to %s with an idempotency key", async (args, path) => {
+    expect(await frame(args)).toBe(0);
+
+    expect(requests[0]!.method).toBe("POST");
+    expect(requests[0]!.url).toBe(path);
+    expect(requests[0]!.idempotencyKey).toMatch(UUID_V4);
+  });
+
+  it.each([
+    [["refunds", "list", "--transfer", "tr_1"], "GET", "/v1/refunds?transfer=tr_1"],
+    [["refunds", "retrieve", "re_1"], "GET", "/v1/refunds/re_1"],
+    [["webhooks", "list"], "GET", "/v1/webhook_endpoints"],
+    [["webhooks", "retrieve", "we_1"], "GET", "/v1/webhook_endpoints/we_1"],
+    [["webhooks", "update", "we_1", "--status", "disabled"], "PATCH", "/v1/webhook_endpoints/we_1"],
+    [["webhooks", "delete", "we_1"], "DELETE", "/v1/webhook_endpoints/we_1"],
+    [["products", "list", "--active"], "GET", "/v1/products?active=true"],
+    [["products", "retrieve", "prod_1"], "GET", "/v1/products/prod_1"],
+    [["products", "update", "prod_1", "--default_price", "900"], "PATCH", "/v1/products/prod_1"],
+    [["products", "delete", "prod_1"], "DELETE", "/v1/products/prod_1"],
+    [["products", "search", "--name", "mug"], "GET", "/v1/products/search?name=mug"],
+    [["invoices", "list", "--status", "draft"], "GET", "/v1/invoices?status=draft"],
+    [["invoices", "retrieve", "inv_1"], "GET", "/v1/invoices/inv_1"],
+    [["invoices", "update", "inv_1", "--memo", "Thanks"], "PATCH", "/v1/invoices/inv_1"],
+    [["invoices", "list-line-items", "inv_1"], "GET", "/v1/invoices/inv_1/line_items"],
+    [
+      ["invoices", "retrieve-line-item", "inv_1", "li_1"],
+      "GET",
+      "/v1/invoices/inv_1/line_items/li_1",
+    ],
+    [
+      ["invoices", "update-line-item", "inv_1", "li_1", "--quantity", "3"],
+      "PATCH",
+      "/v1/invoices/inv_1/line_items/li_1",
+    ],
+    [
+      ["invoices", "delete-line-item", "inv_1", "li_1"],
+      "DELETE",
+      "/v1/invoices/inv_1/line_items/li_1",
+    ],
+  ])("frame %j sends %s %s", async (args, method, url) => {
+    expect(await frame(args)).toBe(0);
+
+    expect(requests[0]!.method).toBe(method);
+    expect(requests[0]!.url).toBe(url);
+  });
+
+  it("creates a refund of part of a transfer", async () => {
+    await frame([
+      "refunds",
+      "create",
+      "--transfer",
+      "tr_1",
+      "--amount",
+      "500",
+      "--reason",
+      "duplicate",
+    ]);
+
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      transfer: "tr_1",
+      amount: 500,
+      reason: "duplicate",
+    });
+  });
+
+  it("creates a webhook endpoint for the event codes named as arguments", async () => {
+    await frame([
+      "webhooks",
+      "create",
+      "transfer.completed",
+      "refund.created",
+      "--url",
+      "https://example.com/hooks",
+    ]);
+
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      url: "https://example.com/hooks",
+      events: ["transfer.completed", "refund.created"],
+    });
+  });
+
+  it("shows the new signing secret after rotate-secret", async () => {
+    nextResponse = {
+      status: 200,
+      body: JSON.stringify({
+        id: "we_1",
+        url: "https://x.test",
+        status: "enabled",
+        secret: "whsec_new",
+      }),
+    };
+
+    await frame(["webhooks", "rotate-secret", "we_1"]);
+
+    expect(stdout).toMatch(/^ID\s+URL\s+STATUS\s+EVENTS\s+SECRET\n/);
+    expect(stdout).toMatch(/we_1\s+https:\/\/x\.test\s+enabled\s+-\s+whsec_new/);
+  });
+
+  it("renders refunds with the refund columns", async () => {
+    const refund = {
+      id: "re_1",
+      status: "pending",
+      amount: 500,
+      currency: "usd",
+      transfer_id: "tr_1",
+    };
+    nextResponse = { status: 200, body: JSON.stringify({ data: [refund] }) };
+
+    await frame(["refunds", "list"]);
+
+    const [header, row] = stdout.trimEnd().split("\n");
+    expect(header).toMatch(/^ID\s+STATUS\s+AMOUNT\s+CURRENCY\s+TRANSFER ID\s+REASON$/);
+    expect(row).toMatch(/^re_1\s+pending\s+500\s+usd\s+tr_1\s+-$/);
+  });
+
+  it("renders products with the product columns", async () => {
+    const product = {
+      id: "prod_1",
+      name: "Mug",
+      active: true,
+      default_price: 900,
+      purchase_type: "one_time",
+    };
+    nextResponse = { status: 200, body: JSON.stringify({ data: [product] }) };
+
+    await frame(["products", "search", "--name", "mug"]);
+
+    expect(stdout).toMatch(
+      /^ID\s+NAME\s+ACTIVE\s+DEFAULT PRICE\s+PURCHASE TYPE\s+RECURRING INTERVAL\n/
+    );
+    expect(stdout).toMatch(/prod_1\s+Mug\s+true\s+900\s+one_time\s+-/);
+  });
+
+  it("renders invoices with the invoice columns and line items with the line item columns", async () => {
+    const invoice = {
+      id: "inv_1",
+      number: "INV-1",
+      status: "draft",
+      account_id: "acct_1",
+      total: 900,
+    };
+    nextResponse = { status: 200, body: JSON.stringify(invoice) };
+    await frame(["invoices", "retrieve", "inv_1"]);
+    expect(stdout).toMatch(/^ID\s+NUMBER\s+STATUS\s+ACCOUNT ID\s+TOTAL\s+CURRENCY\s+DUE DATE\n/);
+    expect(stdout).toMatch(/inv_1\s+INV-1\s+draft\s+acct_1\s+900/);
+
+    stdout = "";
+    const lineItem = {
+      id: "li_1",
+      product_id: "prod_1",
+      description: "Mug",
+      quantity: 2,
+      unit_amount: 900,
+      amount: 1800,
+    };
+    nextResponse = { status: 200, body: JSON.stringify({ data: [lineItem] }) };
+    await frame(["invoices", "list-line-items", "inv_1"]);
+    expect(stdout).toMatch(/^ID\s+PRODUCT ID\s+DESCRIPTION\s+QUANTITY\s+UNIT AMOUNT\s+AMOUNT\n/);
+    expect(stdout).toMatch(/li_1\s+prod_1\s+Mug\s+2\s+900\s+1800/);
+  });
+
+  it("writes the raw body with --json", async () => {
+    const body = '{"id": "inv_1",  "status": "outstanding"}';
+    nextResponse = { status: 200, body };
+
+    await frame(["invoices", "issue", "inv_1", "--json"]);
+
+    expect(stdout).toBe(body);
+  });
+
+  it("sends no idempotency key on updates and deletes", async () => {
+    await frame(["products", "update", "prod_1", "--name", "Cup"]);
+    await frame(["webhooks", "delete", "we_1"]);
+
+    expect(requests.map((request) => request.idempotencyKey)).toEqual([undefined, undefined]);
+  });
+});
+
+describe("frame --help", () => {
+  it("lists every canonical resource with its description from the spec", async () => {
+    const code = await frame(["--help"]);
+
+    expect(code).toBe(0);
+    for (const [command, description] of [
+      ["transfers", "Core Transfers — money movement in either direction"],
+      ["payment-methods", "PaymentMethods — cards and bank accounts"],
+      ["accounts", "Accounts — the parties a merchant transacts with"],
+      ["capabilities", "Capabilities — permissions an Account requests"],
+      ["refunds", "Refunds — reversals of completed inbound Core Transfers"],
+      ["webhooks", "Webhooks — endpoints that receive your events"],
+      ["products", "Products — goods and services you bill for"],
+      ["invoices", "Invoices — bills sent to an Account, with their line items"],
+    ]) {
+      expect(stdout).toMatch(new RegExp(`^\\s+${command}\\s+.*${description}`, "m"));
+    }
+    expect(stdout).not.toMatch(/^\s+customers/m);
+  });
+});
+
 describe("deprecated resources", () => {
   it.each([
     ["customers", "frame accounts"],

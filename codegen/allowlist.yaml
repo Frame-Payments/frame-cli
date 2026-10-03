@@ -1,6 +1,6 @@
 resources:
   transfers:
-    description: Core Transfers — money movement in either direction
+    tag: Transfers
     columns:
       - id
       - status
@@ -21,7 +21,7 @@ resources:
       capture: POST /v2/transfers/{id}/capture
       void: POST /v2/transfers/{id}/void
   payment-methods:
-    description: PaymentMethods — cards and bank accounts a Transfer moves money from or to
+    tag: PaymentMethods
     columns:
       - id
       - type
@@ -38,7 +38,7 @@ resources:
       attach: POST /v1/payment_methods/{id}/attach
       detach: POST /v1/payment_methods/{id}/detach
   accounts:
-    description: Accounts — the parties a merchant transacts with
+    tag: Accounts
     columns:
       - id
       - type
@@ -49,7 +49,7 @@ resources:
       retrieve: GET /v1/accounts/{id}
       list: GET /v1/accounts
   capabilities:
-    description: Capabilities — permissions an Account requests
+    tag: Capabilities
     columns:
       - name
       - status
@@ -58,6 +58,89 @@ resources:
       request:
         operation: POST /v1/accounts/{account_id}/capabilities
         argument: capabilities
+  refunds:
+    tag: Refunds
+    columns:
+      - id
+      - status
+      - amount
+      - currency
+      - transfer_id
+      - reason
+    operations:
+      create: POST /v1/refunds
+      retrieve: GET /v1/refunds/{id}
+      list: GET /v1/refunds
+  webhooks:
+    tag: WebhookEndpoints
+    columns:
+      - id
+      - url
+      - status
+      - events
+      - secret
+    operations:
+      create:
+        operation: POST /v1/webhook_endpoints
+        argument: events
+      retrieve: GET /v1/webhook_endpoints/{id}
+      list: GET /v1/webhook_endpoints
+      update: PATCH /v1/webhook_endpoints/{id}
+      delete: DELETE /v1/webhook_endpoints/{id}
+      rotate-secret: POST /v1/webhook_endpoints/{id}/rotate_secret
+  products:
+    tag: Products
+    columns:
+      - id
+      - name
+      - active
+      - default_price
+      - purchase_type
+      - recurring_interval
+    operations:
+      create: POST /v1/products
+      retrieve: GET /v1/products/{id}
+      list: GET /v1/products
+      update: PATCH /v1/products/{id}
+      delete: DELETE /v1/products/{id}
+      search: GET /v1/products/search
+  invoices:
+    tag: Invoices
+    columns:
+      - id
+      - number
+      - status
+      - account_id
+      - total
+      - currency
+      - due_date
+    operations:
+      create: POST /v1/invoices
+      retrieve: GET /v1/invoices/{id}
+      list: GET /v1/invoices
+      update: PATCH /v1/invoices/{id}
+      issue: POST /v1/invoices/{id}/issue
+      list-line-items:
+        operation: GET /v1/invoices/{invoice_id}/line_items
+        columns: &line-item-columns
+          - id
+          - product_id
+          - description
+          - quantity
+          - unit_amount
+          - amount
+      create-line-item:
+        operation: POST /v1/invoices/{invoice_id}/line_items
+        columns: *line-item-columns
+      retrieve-line-item:
+        operation: GET /v1/invoices/{invoice_id}/line_items/{id}
+        columns: *line-item-columns
+      update-line-item:
+        operation: PATCH /v1/invoices/{invoice_id}/line_items/{id}
+        columns: *line-item-columns
+      delete-line-item:
+        operation: DELETE /v1/invoices/{invoice_id}/line_items/{id}
+        columns: *line-item-columns
 deprecated:
   customers: accounts
   charge-intents: transfers

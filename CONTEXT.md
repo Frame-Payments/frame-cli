@@ -16,9 +16,9 @@ The authoritative domain glossary lives in `frame/CONTEXT.md` (the Rails repo). 
 
 **Refund**: the reversal of a completed inbound Transfer. `frame refunds create | list | retrieve`.
 
-**Webhook**: a merchant-registered endpoint that receives events. `frame webhooks create | list | retrieve | update | delete`.
+**Webhook**: a merchant-registered endpoint that receives events. Webhook endpoints on the API (`/v1/webhook_endpoints`); `frame webhooks create | list | retrieve | update | delete | rotate-secret`.
 
-**Product**, **Invoice**: standard billing primitives. `frame products *`, `frame invoices *`.
+**Product**, **Invoice**: standard billing primitives. `frame products create | list | retrieve | update | delete | search`, `frame invoices create | list | retrieve | update | issue`. An Invoice's line items are verbs on `frame invoices` (`list-line-items | create-line-item | retrieve-line-item | update-line-item | delete-line-item <invoice_id>`), not a resource of their own.
 
 ## Deprecated surface (no CLI commands)
 

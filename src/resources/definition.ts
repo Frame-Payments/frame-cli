@@ -29,6 +29,7 @@ export interface OperationDefinition {
   bodyArgument?: BodyArgumentDefinition;
   flags: FlagDefinition[];
   acceptsBody: boolean;
+  columns?: string[];
 }
 
 export interface WaitDefinition {

@@ -2,6 +2,23 @@ openapi: 3.0.3
 info:
   title: Frame API fixture
   version: "2024-01-01"
+tags:
+  - name: Transfers
+    description: Core Transfers — money movement in either direction
+  - name: PaymentMethods
+    description: PaymentMethods — cards and bank accounts
+  - name: Accounts
+    description: Accounts — the parties a merchant transacts with
+  - name: Capabilities
+    description: Capabilities — permissions an Account requests
+  - name: Refunds
+    description: Refunds — reversals of completed inbound Core Transfers
+  - name: WebhookEndpoints
+    description: Webhooks — endpoints that receive your events
+  - name: Products
+    description: Products — goods and services you bill for
+  - name: Invoices
+    description: Invoices — bills sent to an Account, with their line items
 paths:
   /v2/transfers:
     get:
@@ -166,6 +183,130 @@ paths:
       responses:
         "200":
           description: The Account's capabilities
+  /v1/refunds:
+    post:
+      operationId: createRefund
+      summary: Refund a completed inbound Core Transfer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transfer:
+                  type: string
+                  description: Id of the Core Transfer to refund
+                amount:
+                  type: integer
+                  description: Amount to refund
+      responses:
+        "201":
+          description: The created Refund
+  /v1/webhook_endpoints:
+    post:
+      operationId: createWebhookEndpoint
+      summary: Create a Webhook endpoint
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: HTTPS URL the events are delivered to
+                events:
+                  type: array
+                  description: Event codes to deliver to the endpoint
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: The created Webhook endpoint
+  /v1/webhook_endpoints/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Webhook endpoint id
+        schema:
+          type: string
+    delete:
+      operationId: deleteWebhookEndpoint
+      summary: Delete a Webhook endpoint
+      responses:
+        "200":
+          description: The deleted Webhook endpoint
+  /v1/products/search:
+    get:
+      operationId: searchProducts
+      summary: Search Products by name
+      parameters:
+        - name: name
+          in: query
+          description: Text to match against product names
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching Products
+  /v1/products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Product id
+        schema:
+          type: string
+    patch:
+      operationId: updateProduct
+      summary: Update a Product
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default_price:
+                  type: integer
+                  description: Price in the smallest currency unit
+      responses:
+        "200":
+          description: The updated Product
+  /v1/invoices/{id}/issue:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Invoice id
+        schema:
+          type: string
+    post:
+      operationId: issueInvoice
+      summary: Issue a draft Invoice to its Account
+      responses:
+        "200":
+          description: The issued Invoice
+  /v1/invoices/{invoice_id}/line_items/{id}:
+    parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        description: Invoice id
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Line item id
+        schema:
+          type: string
+    get:
+      operationId: retrieveInvoiceLineItem
+      summary: Retrieve an Invoice line item
+      responses:
+        "200":
+          description: The line item
 components:
   parameters:
     Limit:
