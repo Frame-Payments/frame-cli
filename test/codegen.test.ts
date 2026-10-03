@@ -69,6 +69,18 @@ describe("generateResourceCommands", () => {
     }
   });
 
+  it("describes a path argument from its referenced schema", () => {
+    const spec = structuredClone(fixtureSpec) as {
+      paths: Record<string, { parameters: unknown[] }>;
+      components: { schemas: Record<string, unknown> };
+    };
+    spec.components.schemas.TransferId = { type: "string", description: "Id of the Core Transfer" };
+    spec.paths["/v2/transfers/{id}"]!.parameters = [
+      { name: "id", in: "path", required: true, schema: { $ref: "#/components/schemas/TransferId" } },
+    ];
+    expect(generatedSource(spec, fixtureAllowList)).toContain('"description": "Id of the Core Transfer"');
+  });
+
   it("fails when a request field would shadow a built-in flag", () => {
     const spec = structuredClone(fixtureSpec) as {
       components: { schemas: { TransferCreate: { properties: Record<string, unknown> } } };

@@ -82,16 +82,12 @@ function collectParameters(spec: JsonObject, pathItem: JsonObject, operation: Js
   return [...byKey.values()];
 }
 
-function pathParamsFor(path: string, params: JsonObject[]): PathParamDefinition[] {
+function pathParamsFor(spec: JsonObject, path: string, params: JsonObject[]): PathParamDefinition[] {
   const names = [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]!);
   return names.map((name) => {
     const param = params.find((candidate) => candidate.in === "path" && candidate.name === name);
-    return { name, description: describe(param?.description, resolveSchema(param)?.description) };
+    return { name, description: describe(param?.description, resolve(spec, param?.schema).description) };
   });
-}
-
-function resolveSchema(param: JsonObject | undefined): JsonObject | undefined {
-  return param !== undefined && isObject(param.schema) ? param.schema : undefined;
 }
 
 function queryFlags(spec: JsonObject, params: JsonObject[]): FlagDefinition[] {
@@ -173,7 +169,7 @@ function buildOperation(
     method,
     path,
     summary: describe(operation.summary, operation.description),
-    pathParams: pathParamsFor(path, params),
+    pathParams: pathParamsFor(spec, path, params),
     flags,
     acceptsBody: body !== null,
   };
