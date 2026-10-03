@@ -171,7 +171,10 @@ describe("frame transfers retrieve", () => {
   it("renders the API's code and message with exit 1 on a 4xx", async () => {
     nextResponse = {
       status: 404,
-      body: JSON.stringify({ code: "resource_missing", error_details: { message: "No such transfer" } }),
+      body: JSON.stringify({
+        code: "resource_missing",
+        error_details: { message: "No such transfer" },
+      }),
     };
 
     const code = await frame(["transfers", "retrieve", "tr_missing"]);
@@ -238,9 +241,27 @@ const createTransfer: ResourceDefinition = {
       pathParams: [],
       acceptsBody: true,
       flags: [
-        { flag: "amount.value", location: "body", path: ["amount", "value"], type: "integer", description: "Amount in cents" },
-        { flag: "amount.currency", location: "body", path: ["amount", "currency"], type: "string", description: "Currency" },
-        { flag: "confirm", location: "body", path: ["confirm"], type: "boolean", description: "Confirm now" },
+        {
+          flag: "amount.value",
+          location: "body",
+          path: ["amount", "value"],
+          type: "integer",
+          description: "Amount in cents",
+        },
+        {
+          flag: "amount.currency",
+          location: "body",
+          path: ["amount", "currency"],
+          type: "string",
+          description: "Currency",
+        },
+        {
+          flag: "confirm",
+          location: "body",
+          path: ["confirm"],
+          type: "boolean",
+          description: "Confirm now",
+        },
       ],
     },
   ],
@@ -254,7 +275,7 @@ describe("request bodies", () => {
   it("builds the body from dotted flags", async () => {
     const code = await frame(
       ["transfers", "create", "--amount.value", "2500", "--amount.currency", "usd", "--confirm"],
-      [createTransfer],
+      [createTransfer]
     );
 
     expect(code).toBe(0);
@@ -267,8 +288,15 @@ describe("request bodies", () => {
 
   it("merges dotted flags over a raw --body", async () => {
     await frame(
-      ["transfers", "create", "--body", '{"amount":{"value":1,"currency":"usd"},"metadata":{"a":"b"}}', "--amount.value", "99"],
-      [createTransfer],
+      [
+        "transfers",
+        "create",
+        "--body",
+        '{"amount":{"value":1,"currency":"usd"},"metadata":{"a":"b"}}',
+        "--amount.value",
+        "99",
+      ],
+      [createTransfer]
     );
 
     expect(JSON.parse(requests[0]!.body)).toEqual({

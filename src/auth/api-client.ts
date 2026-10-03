@@ -10,6 +10,8 @@
  * rather than commit to a value the server doesn't honour.
  */
 
+import { isObject } from "../json.js";
+
 /**
  * Hardcoded fallback when no env var or stored credential overrides it.
  *
@@ -41,14 +43,14 @@ export const DEFAULT_BASE_URL =
  * The env var wins so a developer can quickly point an existing login at a
  * local/staging server without re-running `frame login`.
  */
-export function apiRoot(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, "").replace(/\/v\d+$/, "");
-}
-
 export function resolveBaseUrl(cred: { baseUrl?: string } | null | undefined): string {
   if (process.env.FRAME_API_BASE_URL) return process.env.FRAME_API_BASE_URL;
   if (cred?.baseUrl) return cred.baseUrl;
   return HARDCODED_DEFAULT_BASE_URL;
+}
+
+export function apiRoot(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, "").replace(/\/v\d+$/, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +81,7 @@ export interface MeResponse {
  */
 export type ApiErrorDetails = Record<string, unknown>;
 
-export interface ApiErrorExtras {
+interface ApiErrorExtras {
   errorType?: string;
   code?: string;
   details?: ApiErrorDetails;
@@ -110,7 +112,6 @@ export class ApiError extends Error {
 // ---------------------------------------------------------------------------
 
 export interface ApiResponse {
-  status: number;
   text: string;
   body: unknown;
 }
@@ -148,14 +149,10 @@ function truncateForError(text: string, max = 200): string {
 }
 
 function parseCodedError(body: unknown): ({ message: string } & ApiErrorExtras) | null {
-  if (body === null || typeof body !== "object" || !("code" in body) || typeof body.code !== "string") {
-    return null;
-  }
-  const details = "error_details" in body ? body.error_details : undefined;
+  if (!isObject(body) || typeof body.code !== "string") return null;
+  const details = body.error_details;
   const message =
-    details !== null && typeof details === "object" && "message" in details && typeof details.message === "string"
-      ? details.message
-      : body.code;
+    isObject(details) && typeof details.message === "string" ? details.message : body.code;
   return { message, code: body.code };
 }
 
@@ -226,7 +223,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
       throw new ApiError(resp.status, message, extras);
     }
 
-    return { status: resp.status, text: rawText, body: responseBody };
+    return { text: rawText, body: responseBody };
   }
 
   async function request<T>(method: string, path: string, reqBody?: unknown): Promise<T> {

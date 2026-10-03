@@ -45,7 +45,7 @@ describe("generateResourceCommands", () => {
       },
     };
     expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
-      /transfers cancel.*POST \/v2\/transfers\/\{id\}\/cancel.*missing/,
+      /transfers cancel.*POST \/v2\/transfers\/\{id\}\/cancel.*missing/
     );
   });
 
@@ -56,9 +56,16 @@ describe("generateResourceCommands", () => {
     };
     spec.components.schemas.TransferId = { type: "string", description: "Id of the Core Transfer" };
     spec.paths["/v2/transfers/{id}"]!.parameters = [
-      { name: "id", in: "path", required: true, schema: { $ref: "#/components/schemas/TransferId" } },
+      {
+        name: "id",
+        in: "path",
+        required: true,
+        schema: { $ref: "#/components/schemas/TransferId" },
+      },
     ];
-    expect(generatedSource(spec, fixtureAllowList)).toContain('"description": "Id of the Core Transfer"');
+    expect(generatedSource(spec, fixtureAllowList)).toContain(
+      '"description": "Id of the Core Transfer"'
+    );
   });
 
   it("fails when a request field would shadow a built-in flag", () => {

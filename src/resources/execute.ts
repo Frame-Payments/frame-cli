@@ -5,15 +5,10 @@ import { apiRoot, createApiClient, resolveBaseUrl } from "../auth/api-client.js"
 import { runWithBanner } from "../fmt/banner.js";
 import { UsageError } from "../fmt/error.js";
 import { renderTable, rowsOf } from "../fmt/table.js";
+import { isObject, type JsonObject } from "../json.js";
 import type { FlagDefinition, OperationDefinition, ResourceDefinition } from "./definition.js";
 
 type Options = Record<string, unknown>;
-type JsonObject = Record<string, unknown>;
-
-function isObject(value: unknown): value is JsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function parseBodyOption(raw: string): JsonObject {
   const source = raw.startsWith("@") ? readBodyFile(raw.slice(1)) : raw;
   let parsed: unknown;
@@ -50,20 +45,32 @@ function optionKey(flag: FlagDefinition): string {
   return new Option(`--${flag.flag}`).attributeName();
 }
 
-function suppliedFlags(operation: OperationDefinition, options: Options, location: FlagDefinition["location"]) {
+function suppliedFlags(
+  operation: OperationDefinition,
+  options: Options,
+  location: FlagDefinition["location"]
+): { flag: FlagDefinition; value: unknown }[] {
   return operation.flags
     .filter((flag) => flag.location === location)
     .map((flag) => ({ flag, value: options[optionKey(flag)] }))
     .filter(({ value }) => value !== undefined);
 }
 
-function requestPath(operation: OperationDefinition, positionals: string[], options: Options): string {
+function requestPath(
+  operation: OperationDefinition,
+  positionals: string[],
+  options: Options
+): string {
   const path = operation.pathParams.reduce(
-    (current, param, index) => current.replace(`{${param.name}}`, encodeURIComponent(positionals[index] ?? "")),
-    operation.path,
+    (current, param, index) =>
+      current.replace(`{${param.name}}`, encodeURIComponent(positionals[index] ?? "")),
+    operation.path
   );
   const query = new URLSearchParams(
-    suppliedFlags(operation, options, "query").map(({ flag, value }) => [flag.path.join("."), String(value)]),
+    suppliedFlags(operation, options, "query").map(({ flag, value }) => [
+      flag.path.join("."),
+      String(value),
+    ])
   ).toString();
   return query === "" ? path : `${path}?${query}`;
 }
@@ -71,7 +78,8 @@ function requestPath(operation: OperationDefinition, positionals: string[], opti
 function requestBody(operation: OperationDefinition, options: Options): JsonObject | undefined {
   if (!operation.acceptsBody) return undefined;
   const body = typeof options.body === "string" ? parseBodyOption(options.body) : {};
-  for (const { flag, value } of suppliedFlags(operation, options, "body")) setPath(body, flag.path, value);
+  for (const { flag, value } of suppliedFlags(operation, options, "body"))
+    setPath(body, flag.path, value);
   return body;
 }
 
@@ -79,7 +87,7 @@ export async function executeOperation(
   resource: ResourceDefinition,
   operation: OperationDefinition,
   positionals: string[],
-  options: Options,
+  options: Options
 ): Promise<void> {
   const path = requestPath(operation, positionals, options);
   const body = requestBody(operation, options);
@@ -91,8 +99,13 @@ export async function executeOperation(
   const baseUrl = typeof options.baseUrl === "string" ? options.baseUrl : resolveBaseUrl(cred);
   const client = createApiClient({ apiKey: cred.apiKey, baseUrl: apiRoot(baseUrl) });
 
-  await runWithBanner({ merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" }, async () => {
-    const response = await client.send(operation.method, path, body);
-    process.stdout.write(options.json === true ? response.text : renderTable(resource.columns, rowsOf(response.body)));
-  });
+  await runWithBanner(
+    { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
+    async () => {
+      const response = await client.send(operation.method, path, body);
+      process.stdout.write(
+        options.json === true ? response.text : renderTable(resource.columns, rowsOf(response.body))
+      );
+    }
+  );
 }

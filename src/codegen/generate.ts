@@ -7,21 +7,16 @@ import {
   type PathParamDefinition,
   type ResourceDefinition,
 } from "../resources/definition.js";
+import { isObject, type JsonObject } from "../json.js";
 
 export interface GeneratedFile {
   path: string;
   contents: string;
 }
 
-type JsonObject = Record<string, unknown>;
-
-const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
-const SCALAR_TYPES: readonly string[] = ["string", "integer", "number", "boolean"];
+const HTTP_METHODS: readonly string[] = ["get", "post", "put", "patch", "delete"];
+const SCALAR_TYPES: readonly FlagType[] = ["string", "integer", "number", "boolean"];
 const DEFINITION_MODULE = "../../resources/definition.js";
-
-function isObject(value: unknown): value is JsonObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 function asObject(value: unknown, what: string): JsonObject {
   if (!isObject(value)) throw new Error(`${what} must be an object`);
@@ -56,9 +51,12 @@ function describe(...candidates: unknown[]): string {
   return typeof found === "string" ? found.trim() : "";
 }
 
+function isFlagType(value: unknown): value is FlagType {
+  return SCALAR_TYPES.some((type) => type === value);
+}
+
 function scalarType(schema: JsonObject): FlagType | null {
-  const type = schema.type;
-  return typeof type === "string" && SCALAR_TYPES.includes(type) ? (type as FlagType) : null;
+  return isFlagType(schema.type) ? schema.type : null;
 }
 
 function withChoices(flag: FlagDefinition, schema: JsonObject): FlagDefinition {
@@ -74,19 +72,32 @@ function parseOperationRef(ref: string, where: string): { method: string; path: 
   return { method: match[1]!, path: match[2]! };
 }
 
-function collectParameters(spec: JsonObject, pathItem: JsonObject, operation: JsonObject) {
+function collectParameters(
+  spec: JsonObject,
+  pathItem: JsonObject,
+  operation: JsonObject
+): JsonObject[] {
   const declared = [pathItem.parameters, operation.parameters].flatMap((list) =>
-    Array.isArray(list) ? list.map((param) => resolve(spec, param)) : [],
+    Array.isArray(list) ? list.map((param) => resolve(spec, param)) : []
   );
-  const byKey = new Map(declared.map((param) => [`${String(param.in)}:${String(param.name)}`, param]));
+  const byKey = new Map(
+    declared.map((param) => [`${String(param.in)}:${String(param.name)}`, param])
+  );
   return [...byKey.values()];
 }
 
-function pathParamsFor(spec: JsonObject, path: string, params: JsonObject[]): PathParamDefinition[] {
+function pathParamsFor(
+  spec: JsonObject,
+  path: string,
+  params: JsonObject[]
+): PathParamDefinition[] {
   const names = [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]!);
   return names.map((name) => {
     const param = params.find((candidate) => candidate.in === "path" && candidate.name === name);
-    return { name, description: describe(param?.description, resolve(spec, param?.schema).description) };
+    return {
+      name,
+      description: describe(param?.description, resolve(spec, param?.schema).description),
+    };
   });
 }
 
@@ -139,7 +150,8 @@ function requestSchema(spec: JsonObject, operation: JsonObject): JsonObject | nu
 function assertNoCollisions(where: string, flags: FlagDefinition[]): void {
   const seen = new Set<string>(RESERVED_FLAGS);
   for (const { flag } of flags) {
-    if (seen.has(flag)) throw new Error(`${where}: flag --${flag} is defined twice or shadows a built-in flag`);
+    if (seen.has(flag))
+      throw new Error(`${where}: flag --${flag} is defined twice or shadows a built-in flag`);
     seen.add(flag);
   }
 }
@@ -148,7 +160,7 @@ function buildOperation(
   spec: JsonObject,
   resource: string,
   verb: string,
-  ref: string,
+  ref: string
 ): OperationDefinition {
   const where = `${resource} ${verb}`;
   const { method, path } = parseOperationRef(ref, where);
@@ -156,7 +168,9 @@ function buildOperation(
   const pathItem = paths[path];
   const operation = isObject(pathItem) ? pathItem[method.toLowerCase()] : undefined;
   if (!isObject(pathItem) || !isObject(operation)) {
-    throw new Error(`Allow-listed operation ${where} (${method} ${path}) is missing from the OpenAPI document`);
+    throw new Error(
+      `Allow-listed operation ${where} (${method} ${path}) is missing from the OpenAPI document`
+    );
   }
 
   const params = collectParameters(spec, pathItem, operation);
@@ -183,7 +197,7 @@ function buildResource(spec: JsonObject, command: string, raw: unknown): Resourc
     description: asString(entry.description, `allow-list ${command}.description`),
     columns: asStringList(entry.columns, `allow-list ${command}.columns`),
     operations: Object.entries(operations).map(([verb, ref]) =>
-      buildOperation(spec, command, verb, asString(ref, `allow-list ${command}.operations.${verb}`)),
+      buildOperation(spec, command, verb, asString(ref, `allow-list ${command}.operations.${verb}`))
     ),
   };
 }
@@ -203,7 +217,7 @@ function resourceModule(resource: ResourceDefinition): string {
 
 function indexModule(resources: ResourceDefinition[], deprecated: DeprecatedResource[]): string {
   const imports = resources.map(
-    ({ command }) => `import { ${identifierFor(command)} } from "./${command}.js";`,
+    ({ command }) => `import { ${identifierFor(command)} } from "./${command}.js";`
   );
   const names = resources.map(({ command }) => identifierFor(command)).join(", ");
   return [
@@ -221,14 +235,20 @@ export function generateResourceCommands(spec: unknown, allowList: unknown): Gen
   const document = asObject(spec, "OpenAPI document");
   const list = asObject(allowList, "allow-list");
   const resources = Object.entries(asObject(list.resources, "allow-list resources")).map(
-    ([command, entry]) => buildResource(document, command, entry),
+    ([command, entry]) => buildResource(document, command, entry)
   );
-  const deprecated = Object.entries(list.deprecated === undefined ? {} : asObject(list.deprecated, "allow-list deprecated")).map(
-    ([command, canonical]) => ({ command, canonical: asString(canonical, `allow-list deprecated.${command}`) }),
-  );
+  const deprecated = Object.entries(
+    list.deprecated === undefined ? {} : asObject(list.deprecated, "allow-list deprecated")
+  ).map(([command, canonical]) => ({
+    command,
+    canonical: asString(canonical, `allow-list deprecated.${command}`),
+  }));
 
   return [
-    ...resources.map((resource) => ({ path: `${resource.command}.ts`, contents: resourceModule(resource) })),
+    ...resources.map((resource) => ({
+      path: `${resource.command}.ts`,
+      contents: resourceModule(resource),
+    })),
     { path: "index.ts", contents: indexModule(resources, deprecated) },
   ];
 }
