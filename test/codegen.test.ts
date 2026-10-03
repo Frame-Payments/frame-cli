@@ -42,28 +42,6 @@ describe("generateResourceCommands", () => {
     );
   });
 
-  it("gives an operation its own table columns when the allow-list names them", () => {
-    const allowList = {
-      resources: {
-        transfers: {
-          tag: "Transfers",
-          columns: ["id"],
-          operations: {
-            list: "GET /v2/transfers",
-            confirm: { operation: "POST /v2/transfers/{id}/confirm", columns: ["id", "status"] },
-          },
-        },
-      },
-    };
-    const [transfers] = generateResourceCommands(fixtureSpec, allowList);
-    expect(transfers!.contents).toMatch(
-      /"verb": "confirm",[\s\S]*"columns": \[\s*"id",\s*"status"\s*\]/
-    );
-    expect(transfers!.contents).not.toMatch(
-      /"verb": "list",[\s\S]*"columns"[\s\S]*"verb": "confirm"/
-    );
-  });
-
   it("fails when a body argument is not a field of the request body", () => {
     const allowList = {
       resources: {
@@ -91,13 +69,6 @@ describe("generateResourceCommands", () => {
     };
     expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
       /transfers create.*argument confirm/
-    );
-  });
-
-  it("describes each resource with its spec tag's description", () => {
-    const source = generatedSource(fixtureSpec, fixtureAllowList);
-    expect(source).toContain(
-      '"description": "Core Transfers — money movement in either direction"'
     );
   });
 

@@ -50,15 +50,6 @@ describe("README.md", () => {
       "frame listen",
       "frame events resend",
       "frame open",
-    ];
-
-    for (const cmd of commands) {
-      it(`includes '${cmd}' in the command table`, () => {
-        expect(readme).toContain(cmd);
-      });
-    }
-
-    it.each([
       "frame transfers",
       "frame payment-methods",
       "frame accounts",
@@ -70,9 +61,13 @@ describe("README.md", () => {
       "frame invoices create|list|retrieve|update|issue",
       "frame invoices list-line-items <invoice_id>",
       "frame invoices create-line-item|retrieve-line-item|update-line-item|delete-line-item",
-    ])("documents %s", (command) => {
-      expect(readme.replaceAll("\\|", "|")).toContain(command);
-    });
+    ];
+
+    for (const cmd of commands) {
+      it(`includes '${cmd}' in the command table`, () => {
+        expect(readme.replaceAll("\\|", "|")).toContain(cmd);
+      });
+    }
 
     it("omits the placeholder command", () => {
       expect(readme).not.toContain("placeholder");

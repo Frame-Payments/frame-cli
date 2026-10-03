@@ -850,7 +850,7 @@ describe("refunds, webhooks, products and invoices", () => {
     expect(stdout).toMatch(/prod_1\s+Mug\s+true\s+900\s+one_time\s+-/);
   });
 
-  it("renders invoices with the invoice columns and line items with the line item columns", async () => {
+  it("renders invoices with the invoice columns", async () => {
     const invoice = {
       id: "inv_1",
       number: "INV-1",
@@ -862,8 +862,9 @@ describe("refunds, webhooks, products and invoices", () => {
     await frame(["invoices", "retrieve", "inv_1"]);
     expect(stdout).toMatch(/^ID\s+NUMBER\s+STATUS\s+ACCOUNT ID\s+TOTAL\s+CURRENCY\s+DUE DATE\n/);
     expect(stdout).toMatch(/inv_1\s+INV-1\s+draft\s+acct_1\s+900/);
+  });
 
-    stdout = "";
+  it("renders invoice line items with the line item columns", async () => {
     const lineItem = {
       id: "li_1",
       product_id: "prod_1",
