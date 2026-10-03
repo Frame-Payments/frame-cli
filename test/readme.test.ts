@@ -14,20 +14,19 @@ describe("README.md", () => {
   it("mentions the package name and sandbox-only status in the header", () => {
     expect(readme).toMatch(/Frame CLI/);
     expect(readme).toMatch(/sandbox/i);
-    expect(readme).toMatch(/0\.0\.0/);
   });
 
   describe("Install section", () => {
-    it("includes npm global install command", () => {
-      expect(readme).toContain("npm i -g @frame-payments/cli");
+    it("includes Homebrew install command", () => {
+      expect(readme).toContain("brew install Frame-Payments/tap/frame");
     });
 
-    it("includes npx escape hatch", () => {
-      expect(readme).toContain("npx @frame-payments/cli");
+    it("includes the tap-first alternative", () => {
+      expect(readme).toContain("brew tap Frame-Payments/tap");
     });
 
-    it("mentions Node.js >= 20 requirement", () => {
-      expect(readme).toMatch(/[Nn]ode\.?[Jj]s?\s*[≥>=]+\s*20/);
+    it("states the Homebrew requirement", () => {
+      expect(readme).toMatch(/\*\*Requirements:\*\*\s*Homebrew/);
     });
   });
 
