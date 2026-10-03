@@ -1,5 +1,6 @@
 import {
   RESERVED_FLAGS,
+  type BodyArgumentDefinition,
   type DeprecatedResource,
   type FlagDefinition,
   type FlagType,
@@ -59,9 +60,9 @@ function scalarType(schema: JsonObject): FlagType | null {
   return isFlagType(schema.type) ? schema.type : null;
 }
 
-function withChoices(flag: FlagDefinition, schema: JsonObject): FlagDefinition {
-  if (!Array.isArray(schema.enum)) return flag;
-  return { ...flag, choices: schema.enum.map(String) };
+function withChoices<T extends { choices?: string[] }>(definition: T, schema: JsonObject): T {
+  if (!Array.isArray(schema.enum)) return definition;
+  return { ...definition, choices: schema.enum.map(String) };
 }
 
 function parseOperationRef(ref: string, where: string): { method: string; path: string } {
@@ -147,6 +148,32 @@ function requestSchema(spec: JsonObject, operation: JsonObject): JsonObject | nu
   return resolve(spec, json.schema);
 }
 
+function bodyArgument(
+  spec: JsonObject,
+  where: string,
+  body: JsonObject | null,
+  name: string,
+  variadicAllowed: boolean
+): BodyArgumentDefinition {
+  const properties = body !== null && isObject(body.properties) ? body.properties : {};
+  if (!(name in properties))
+    throw new Error(`${where}: argument ${name} is not a field of the request body`);
+  const property = resolve(spec, properties[name]);
+  const variadic = property.type === "array";
+  const scalar = variadic ? resolve(spec, property.items) : property;
+  if (scalar.type !== "string" || (variadic && !variadicAllowed)) {
+    throw new Error(
+      `${where}: argument ${name} must be a string, or a list of strings as the last argument`
+    );
+  }
+  const argument: BodyArgumentDefinition = {
+    name,
+    description: describe(property.description),
+    variadic,
+  };
+  return withChoices(argument, scalar);
+}
+
 function assertNoCollisions(where: string, flags: FlagDefinition[]): void {
   const seen = new Set<string>(RESERVED_FLAGS);
   for (const { flag } of flags) {
@@ -156,13 +183,26 @@ function assertNoCollisions(where: string, flags: FlagDefinition[]): void {
   }
 }
 
+function parseAllowListOperation(
+  raw: unknown,
+  where: string
+): { ref: string; argumentNames: string[] } {
+  if (typeof raw === "string") return { ref: raw, argumentNames: [] };
+  const entry = asObject(raw, where);
+  return {
+    ref: asString(entry.operation, `${where}.operation`),
+    argumentNames: asStringList(entry.arguments ?? [], `${where}.arguments`),
+  };
+}
+
 function buildOperation(
   spec: JsonObject,
   resource: string,
   verb: string,
-  ref: string
+  raw: unknown
 ): OperationDefinition {
   const where = `${resource} ${verb}`;
+  const { ref, argumentNames } = parseAllowListOperation(raw, `allow-list ${where}`);
   const { method, path } = parseOperationRef(ref, where);
   const paths = asObject(spec.paths, "OpenAPI paths");
   const pathItem = paths[path];
@@ -175,7 +215,15 @@ function buildOperation(
 
   const params = collectParameters(spec, pathItem, operation);
   const body = requestSchema(spec, operation);
-  const flags = [...queryFlags(spec, params), ...(body === null ? [] : bodyFlags(spec, body, []))];
+  const bodyArguments = argumentNames.map((name, index) =>
+    bodyArgument(spec, where, body, name, index === argumentNames.length - 1)
+  );
+  const flags = [
+    ...queryFlags(spec, params),
+    ...(body === null ? [] : bodyFlags(spec, body, [])).filter(
+      ({ path: [field] }) => field === undefined || !argumentNames.includes(field)
+    ),
+  ];
   assertNoCollisions(where, flags);
 
   return {
@@ -184,6 +232,7 @@ function buildOperation(
     path,
     summary: describe(operation.summary, operation.description),
     pathParams: pathParamsFor(spec, path, params),
+    bodyArguments,
     flags,
     acceptsBody: body !== null,
   };
@@ -196,8 +245,8 @@ function buildResource(spec: JsonObject, command: string, raw: unknown): Resourc
     command,
     description: asString(entry.description, `allow-list ${command}.description`),
     columns: asStringList(entry.columns, `allow-list ${command}.columns`),
-    operations: Object.entries(operations).map(([verb, ref]) =>
-      buildOperation(spec, command, verb, asString(ref, `allow-list ${command}.operations.${verb}`))
+    operations: Object.entries(operations).map(([verb, raw]) =>
+      buildOperation(spec, command, verb, raw)
     ),
   };
 }

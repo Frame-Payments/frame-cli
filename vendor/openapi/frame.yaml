@@ -49,6 +49,29 @@ paths:
                 $ref: "#/components/schemas/TransferList"
         "401":
           $ref: "#/components/responses/Error"
+    post:
+      operationId: createTransfer
+      summary: Create a Core Transfer
+      tags: [Transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferCreate"
+      responses:
+        "201":
+          description: The created Core Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "400":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
   /v2/transfers/{id}:
     parameters:
       - name: id
@@ -69,6 +92,381 @@ paths:
               schema:
                 $ref: "#/components/schemas/Transfer"
         "404":
+          $ref: "#/components/responses/Error"
+  /v2/transfers/{id}/confirm:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Core Transfer
+        schema:
+          type: string
+    post:
+      operationId: confirmTransfer
+      summary: Confirm a Core Transfer so it starts moving money
+      tags: [Transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v2/transfers/{id}/refund:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Core Transfer
+        schema:
+          type: string
+    post:
+      operationId: refundTransfer
+      summary: Refund a completed inbound Core Transfer
+      tags: [Transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRefund"
+      responses:
+        "200":
+          description: The updated Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v2/transfers/{id}/capture:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Core Transfer
+        schema:
+          type: string
+    post:
+      operationId: captureTransfer
+      summary: Capture an authorized Core Transfer
+      tags: [Transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferCapture"
+      responses:
+        "200":
+          description: The updated Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v2/transfers/{id}/void:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Core Transfer
+        schema:
+          type: string
+    post:
+      operationId: voidTransfer
+      summary: Void an authorized Core Transfer before capture
+      tags: [Transfers]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/payment_methods:
+    get:
+      operationId: listPaymentMethods
+      summary: List PaymentMethods
+      tags: [PaymentMethods]
+      parameters:
+        - name: account
+          in: query
+          description: Only return payment methods attached to this Account id
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Only return payment methods of this type
+          schema:
+            type: string
+            enum: [card, ach]
+        - name: limit
+          in: query
+          description: Maximum number of payment methods to return (1-100)
+          schema:
+            type: integer
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A page of PaymentMethods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethodList"
+    post:
+      operationId: createPaymentMethod
+      summary: Create a PaymentMethod
+      tags: [PaymentMethods]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentMethodCreate"
+      responses:
+        "201":
+          description: The created PaymentMethod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/payment_methods/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the PaymentMethod
+        schema:
+          type: string
+    get:
+      operationId: retrievePaymentMethod
+      summary: Retrieve a PaymentMethod
+      tags: [PaymentMethods]
+      responses:
+        "200":
+          description: The PaymentMethod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/payment_methods/{id}/block:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the PaymentMethod
+        schema:
+          type: string
+    post:
+      operationId: blockPaymentMethod
+      summary: Block a PaymentMethod on the merchant blocklist
+      tags: [PaymentMethods]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated PaymentMethod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/payment_methods/{id}/unblock:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the PaymentMethod
+        schema:
+          type: string
+    post:
+      operationId: unblockPaymentMethod
+      summary: Remove a PaymentMethod from the merchant blocklist
+      tags: [PaymentMethods]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated PaymentMethod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/payment_methods/{id}/attach:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the PaymentMethod
+        schema:
+          type: string
+    post:
+      operationId: attachPaymentMethod
+      summary: Attach a PaymentMethod to an Account
+      tags: [PaymentMethods]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentMethodAttach"
+      responses:
+        "200":
+          description: The updated PaymentMethod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/payment_methods/{id}/detach:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the PaymentMethod
+        schema:
+          type: string
+    post:
+      operationId: detachPaymentMethod
+      summary: Detach a PaymentMethod from its Account
+      tags: [PaymentMethods]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated PaymentMethod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/accounts:
+    get:
+      operationId: listAccounts
+      summary: List Accounts
+      tags: [Accounts]
+      parameters:
+        - name: type
+          in: query
+          description: Only return accounts of this type
+          schema:
+            type: string
+            enum: [individual, business]
+        - name: limit
+          in: query
+          description: Maximum number of accounts to return (1-100)
+          schema:
+            type: integer
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: A page of Accounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountList"
+    post:
+      operationId: createAccount
+      summary: Create an Account
+      tags: [Accounts]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountCreate"
+      responses:
+        "201":
+          description: The created Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "422":
+          $ref: "#/components/responses/Error"
+  /v1/accounts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Account
+        schema:
+          type: string
+    get:
+      operationId: retrieveAccount
+      summary: Retrieve an Account
+      tags: [Accounts]
+      responses:
+        "200":
+          description: The Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/accounts/{account_id}/capabilities:
+    parameters:
+      - name: account_id
+        in: path
+        required: true
+        description: Id of the Account requesting the capabilities
+        schema:
+          type: string
+    post:
+      operationId: requestCapabilities
+      summary: Request Capabilities for an Account
+      tags: [Capabilities]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CapabilityRequest"
+      responses:
+        "200":
+          description: The Account's Capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilityList"
+        "422":
           $ref: "#/components/responses/Error"
   /v1/transfers:
     get:
@@ -98,6 +496,13 @@ paths:
         "200":
           description: A page of charge intents
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Unique key that makes retrying this request safe; a replay returns the original response
+      schema:
+        type: string
   responses:
     Error:
       description: An API error
@@ -148,6 +553,266 @@ components:
             $ref: "#/components/schemas/Transfer"
         meta:
           type: object
+    TransferCreate:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Amount in the smallest currency unit
+            currency:
+              type: string
+              description: Three-letter ISO currency code
+              enum: [usd]
+        source:
+          type: object
+          properties:
+            payment_method_id:
+              type: string
+              description: PaymentMethod the funds are pulled from
+        destination:
+          type: object
+          properties:
+            account_id:
+              type: string
+              description: Account the funds are paid out to
+        description:
+          type: string
+          description: Free-text description shown to the merchant
+        confirm:
+          type: boolean
+          description: Confirm the transfer immediately instead of leaving it for frame transfers confirm
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    TransferRefund:
+      type: object
+      properties:
+        amount:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Amount to refund in the smallest currency unit; defaults to the full amount
+        reason:
+          type: string
+          description: Why the transfer is being refunded
+    TransferCapture:
+      type: object
+      properties:
+        amount:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Amount to capture in the smallest currency unit; defaults to the authorized amount
+    PaymentMethod:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        type:
+          type: string
+          enum: [card, ach]
+        status:
+          type: string
+        account_id:
+          type: string
+          nullable: true
+        ach:
+          type: object
+          properties:
+            account_type:
+              type: string
+            last_four:
+              type: string
+    PaymentMethodList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentMethod"
+        meta:
+          type: object
+    PaymentMethodCreate:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          description: Kind of payment method
+          enum: [card, ach]
+        account:
+          type: string
+          description: Account id to attach the payment method to
+        account_number:
+          type: string
+          description: Bank account number (ach)
+        routing_number:
+          type: string
+          description: Nine-digit ABA routing number (ach)
+        account_type:
+          type: string
+          description: Bank account type (ach)
+          enum: [checking, savings]
+        card_number:
+          type: string
+          description: Card number (card)
+        exp_month:
+          type: string
+          description: Two-digit expiry month (card)
+        exp_year:
+          type: string
+          description: Two-digit expiry year (card)
+        cvc:
+          type: string
+          description: Card security code (card)
+        billing:
+          type: object
+          properties:
+            postal_code:
+              type: string
+              description: Billing postal code
+    PaymentMethodAttach:
+      type: object
+      required: [account]
+      properties:
+        account:
+          type: string
+          description: Account id to attach the payment method to
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        type:
+          type: string
+          enum: [individual, business]
+        status:
+          type: string
+        external_id:
+          type: string
+          nullable: true
+        created:
+          type: integer
+    AccountList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        meta:
+          type: object
+    AccountCreate:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          description: Kind of party the Account represents
+          enum: [individual, business]
+        external_id:
+          type: string
+          description: Your own identifier for this Account
+        terms_of_service:
+          type: object
+          properties:
+            accepted_at:
+              type: string
+              description: ISO 8601 time the party accepted the terms of service
+            ip_address:
+              type: string
+              description: IP address the terms of service were accepted from
+        profile:
+          type: object
+          properties:
+            individual:
+              type: object
+              properties:
+                name:
+                  type: object
+                  properties:
+                    first_name:
+                      type: string
+                      description: Legal first name
+                    last_name:
+                      type: string
+                      description: Legal last name
+                email:
+                  type: string
+                  description: Email address
+                phone_number:
+                  type: string
+                  description: Phone number in E.164 format
+                birthdate:
+                  type: string
+                  description: Date of birth (YYYY-MM-DD)
+                address:
+                  type: object
+                  properties:
+                    line_1:
+                      type: string
+                      description: Street address
+                    city:
+                      type: string
+                      description: City
+                    state:
+                      type: string
+                      description: Two-letter state code
+                    postal_code:
+                      type: string
+                      description: Postal code
+                    country:
+                      type: string
+                      description: Two-letter ISO country code
+            business:
+              type: object
+              properties:
+                legal_business_name:
+                  type: string
+                  description: Registered business name
+                email:
+                  type: string
+                  description: Business email address
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+    Capability:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        disabled_reason:
+          type: string
+          nullable: true
+    CapabilityList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Capability"
+    CapabilityRequest:
+      type: object
+      required: [capabilities]
+      properties:
+        capabilities:
+          type: array
+          description: Capabilities to request for the Account
+          items:
+            type: string
+            enum: [card_receive, card_send, bank_account_receive, bank_account_send, kyc, kyc_prefill]
     Error:
       type: object
       properties:

@@ -1,3 +1,5 @@
+export type Positional = string | string[];
+
 export type FlagType = "string" | "integer" | "number" | "boolean";
 
 export interface FlagDefinition {
@@ -14,12 +16,20 @@ export interface PathParamDefinition {
   description: string;
 }
 
+export interface BodyArgumentDefinition {
+  name: string;
+  description: string;
+  variadic: boolean;
+  choices?: string[];
+}
+
 export interface OperationDefinition {
   verb: string;
   method: string;
   path: string;
   summary: string;
   pathParams: PathParamDefinition[];
+  bodyArguments: BodyArgumentDefinition[];
   flags: FlagDefinition[];
   acceptsBody: boolean;
 }
@@ -36,4 +46,8 @@ export interface DeprecatedResource {
   canonical: string;
 }
 
-export const RESERVED_FLAGS = ["json", "body", "base-url", "help"] as const;
+export const RESERVED_FLAGS = ["json", "body", "base-url", "idempotency-key", "help"] as const;
+
+export function sendsIdempotencyKey(operation: OperationDefinition): boolean {
+  return operation.method === "POST";
+}

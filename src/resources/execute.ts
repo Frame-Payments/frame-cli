@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Option } from "commander";
 import { get } from "../auth/keyring.js";
@@ -6,7 +7,13 @@ import { runWithBanner } from "../fmt/banner.js";
 import { UsageError } from "../fmt/error.js";
 import { renderTable, rowsOf } from "../fmt/table.js";
 import { isObject, type JsonObject } from "../json.js";
-import type { FlagDefinition, OperationDefinition, ResourceDefinition } from "./definition.js";
+import {
+  sendsIdempotencyKey,
+  type FlagDefinition,
+  type OperationDefinition,
+  type Positional,
+  type ResourceDefinition,
+} from "./definition.js";
 
 type Options = Record<string, unknown>;
 function parseBodyOption(raw: string): JsonObject {
@@ -58,12 +65,12 @@ function suppliedFlags(
 
 function requestPath(
   operation: OperationDefinition,
-  positionals: string[],
+  positionals: Positional[],
   options: Options
 ): string {
   const path = operation.pathParams.reduce(
     (current, param, index) =>
-      current.replace(`{${param.name}}`, encodeURIComponent(positionals[index] ?? "")),
+      current.replace(`{${param.name}}`, encodeURIComponent(String(positionals[index] ?? ""))),
     operation.path
   );
   const query = new URLSearchParams(
@@ -75,22 +82,37 @@ function requestPath(
   return query === "" ? path : `${path}?${query}`;
 }
 
-function requestBody(operation: OperationDefinition, options: Options): JsonObject | undefined {
+function requestBody(
+  operation: OperationDefinition,
+  positionals: Positional[],
+  options: Options
+): JsonObject | undefined {
   if (!operation.acceptsBody) return undefined;
   const body = typeof options.body === "string" ? parseBodyOption(options.body) : {};
   for (const { flag, value } of suppliedFlags(operation, options, "body"))
     setPath(body, flag.path, value);
+  operation.bodyArguments.forEach(({ name }, index) => {
+    body[name] = positionals[operation.pathParams.length + index];
+  });
   return body;
+}
+
+function idempotencyKeyFor(operation: OperationDefinition, options: Options): string | undefined {
+  if (!sendsIdempotencyKey(operation)) return undefined;
+  return typeof options.idempotencyKey === "string" ? options.idempotencyKey : randomUUID();
 }
 
 export async function executeOperation(
   resource: ResourceDefinition,
   operation: OperationDefinition,
-  positionals: string[],
+  positionals: Positional[],
   options: Options
 ): Promise<void> {
   const path = requestPath(operation, positionals, options);
-  const body = requestBody(operation, options);
+  const body = requestBody(operation, positionals, options);
+  const idempotencyKey = idempotencyKeyFor(operation, options);
+  const headers: Record<string, string> =
+    idempotencyKey === undefined ? {} : { "Idempotency-Key": idempotencyKey };
 
   const cred = await get();
   if (cred === null) {
@@ -100,9 +122,15 @@ export async function executeOperation(
   const client = createApiClient({ apiKey: cred.apiKey, baseUrl: apiRoot(baseUrl) });
 
   await runWithBanner(
-    { merchant: cred.merchant, mode: cred.devMode ? "sandbox" : "live" },
+    {
+      merchant: cred.merchant,
+      mode: cred.devMode ? "sandbox" : "live",
+      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    },
     async () => {
-      const response = await client.send(operation.method, path, body);
+      const response = await client.send(operation.method, path, body, headers);
+      const replay = response.headers.get("Idempotent-Replay");
+      if (replay !== null) process.stderr.write(`Idempotent-Replay: ${replay}\n`);
       process.stdout.write(
         options.json === true ? response.text : renderTable(resource.columns, rowsOf(response.body))
       );

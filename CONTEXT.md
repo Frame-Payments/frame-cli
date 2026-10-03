@@ -10,7 +10,9 @@ The authoritative domain glossary lives in `frame/CONTEXT.md` (the Rails repo). 
 
 **Capability**: a discrete permission an Account requests (`card_receive`, `card_send`, `kyc`, `bank_account_receive`, etc.). `frame capabilities request | list | retrieve | disable`.
 
-**Transfer**: the canonical public handle for any money movement, in either direction. `frame transfers create | list | retrieve | update | cancel`.
+**Transfer**: the canonical public handle for any money movement, in either direction. `frame transfers create | list | retrieve | confirm | refund | capture | void`.
+
+**PaymentMethod**: a card or bank account (ACH) that a Transfer pulls funds from or pays them out to, usually attached to an Account. Joins the ADR-0006 list because a Transfer cannot be created without one. `frame payment-methods create | list | retrieve | block | unblock | attach | detach`.
 
 **Refund**: the reversal of a completed inbound Transfer. `frame refunds create | list | retrieve`.
 
@@ -31,6 +33,8 @@ A merchant who runs `frame customers create` should hit a clear error pointing t
 **live mode**: production traffic with `sk_live_*` keys. Out of scope for the CLI in v1. `frame login` rejects live keys with a clear error.
 
 **CLI session**: a running `frame listen` (or future `frame logs tail`) connection, modeled server-side as a transient `Webhook::Endpoint` with `status: :cli_session`. Auto-deleted by the server when the WebSocket disconnects or the session goes idle for ~5 minutes. CLI contributors should think of a session as ephemeral state — never write code that assumes the session outlives the WebSocket.
+
+**Idempotency-Key**: the header every mutating (`POST`) command sends so a retried command never double-charges. A fresh UUID v4 by default, printed on stderr with the banner; `--idempotency-key <key>` sends a chosen key verbatim, and the API marks a replayed response with `Idempotent-Replay`.
 
 **session secret** / **`whsec_cli_*`**: a per-session HMAC secret printed on `frame listen` startup, used to sign forwarded webhooks so the merchant's local server can verify them with normal signature-verification code. Distinct from the merchant's real endpoint secrets.
 

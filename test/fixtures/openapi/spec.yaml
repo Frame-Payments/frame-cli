@@ -57,6 +57,32 @@ paths:
       responses:
         "200":
           description: A page of customers
+  /v1/accounts/{account_id}/capabilities:
+    post:
+      operationId: requestCapabilities
+      summary: Request capabilities for an Account
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          description: Account id
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                capabilities:
+                  type: array
+                  description: Capabilities to request
+                  items:
+                    type: string
+                    enum: [card_receive, bank_account_receive]
+      responses:
+        "200":
+          description: The Account's capabilities
 components:
   parameters:
     Limit:

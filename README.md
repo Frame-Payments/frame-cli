@@ -52,6 +52,12 @@ Your local server receives webhook payloads within seconds of the events being p
 | [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
 | [`frame transfers list`](https://github.com/Frame-Payments/frame-cli#readme) | List Core Transfers (`--limit`, `--type`, `--json`) |
 | [`frame transfers retrieve <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Retrieve a Core Transfer |
+| [`frame transfers create`](https://github.com/Frame-Payments/frame-cli#readme) | Create a Core Transfer (`--amount.value`, `--source.payment_method_id`, `--confirm`) |
+| [`frame transfers confirm\|refund\|capture\|void <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Run a member action on a Core Transfer |
+| [`frame payment-methods create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage PaymentMethods (cards and ACH bank accounts) |
+| [`frame payment-methods block\|unblock\|attach\|detach <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Run a member action on a PaymentMethod |
+| [`frame accounts create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Accounts |
+| [`frame capabilities request <account_id> <capabilities...>`](https://github.com/Frame-Payments/frame-cli#readme) | Request Capabilities for an Account |
 | [`frame open [page]`](https://github.com/Frame-Payments/frame-cli#readme) | Open a dashboard page in the default browser |
 
 Run `frame <command> --help` for options and examples on any command.
@@ -93,7 +99,7 @@ Start with [`CONTEXT.md`](./CONTEXT.md) for the canonical-vs-deprecated vocabula
 
 A CI test validates the skill frontmatter.
 
-**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. Operations missing from the allow-list never get a command; CI fails if the generated files drift.
+**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. An operation written as `{ operation, arguments }` turns the named request-body fields into positional arguments (a list field must come last). Operations missing from the allow-list never get a command; CI fails if the generated files drift.
 
 ---
 

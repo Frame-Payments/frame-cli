@@ -24,12 +24,14 @@ interface RecordedRequest {
   method: string;
   url: string;
   authorization: string | undefined;
+  idempotencyKey: string | undefined;
   body: string;
 }
 
 interface StubResponse {
   status: number;
   body: string;
+  headers?: Record<string, string>;
 }
 
 let server: Server;
@@ -51,9 +53,13 @@ beforeAll(async () => {
       method: req.method ?? "",
       url: req.url ?? "",
       authorization: req.headers.authorization,
+      idempotencyKey: req.headers["idempotency-key"] as string | undefined,
       body: await readBody(req),
     });
-    res.writeHead(nextResponse.status, { "Content-Type": "application/json" });
+    res.writeHead(nextResponse.status, {
+      "Content-Type": "application/json",
+      ...nextResponse.headers,
+    });
     res.end(nextResponse.body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -239,6 +245,7 @@ const createTransfer: ResourceDefinition = {
       path: "/v2/transfers",
       summary: "Create a Core Transfer",
       pathParams: [],
+      bodyArguments: [],
       acceptsBody: true,
       flags: [
         {
@@ -317,6 +324,227 @@ describe("request bodies", () => {
   it("exits 2 when --body is not JSON", async () => {
     expect(await frame(["transfers", "create", "--body", "{nope"], [createTransfer])).toBe(2);
     expect(requests).toHaveLength(0);
+  });
+});
+
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+describe("idempotency keys", () => {
+  beforeEach(() => {
+    nextResponse = { status: 201, body: JSON.stringify({ id: "tr_new" }) };
+  });
+
+  it("sends a fresh UUID v4 Idempotency-Key on every create", async () => {
+    await frame(["transfers", "create", "--amount.value", "1"], [createTransfer]);
+    await frame(["transfers", "create", "--amount.value", "1"], [createTransfer]);
+
+    const [first, second] = requests.map((request) => request.idempotencyKey);
+    expect(first).toMatch(UUID_V4);
+    expect(second).toMatch(UUID_V4);
+    expect(first).not.toBe(second);
+  });
+
+  it("sends --idempotency-key verbatim instead of a generated key", async () => {
+    await frame(
+      ["transfers", "create", "--amount.value", "1", "--idempotency-key", "replay-me"],
+      [createTransfer]
+    );
+
+    expect(requests[0]!.idempotencyKey).toBe("replay-me");
+  });
+
+  it("prints the key used on stderr with the banner and never on stdout", async () => {
+    await frame(["transfers", "create", "--amount.value", "1", "--json"], [createTransfer]);
+
+    const key = requests[0]!.idempotencyKey!;
+    expect(stderr).toContain("mode: sandbox");
+    expect(stderr).toContain(`idempotency-key: ${key}`);
+    expect(stdout).toBe(JSON.stringify({ id: "tr_new" }));
+  });
+
+  it("shows the Idempotent-Replay header when the API replays the original response", async () => {
+    nextResponse = {
+      status: 201,
+      body: JSON.stringify({ id: "tr_original" }),
+      headers: { "Idempotent-Replay": "true" },
+    };
+
+    await frame(["transfers", "create", "--idempotency-key", "k1"], [createTransfer]);
+
+    expect(stdout).toContain("tr_original");
+    expect(stderr).toContain("Idempotent-Replay: true");
+  });
+
+  it("does not mention a replay on a first request", async () => {
+    await frame(["transfers", "create", "--idempotency-key", "k1"], [createTransfer]);
+
+    expect(stderr).not.toContain("Idempotent-Replay");
+  });
+
+  it("renders a reused key as the API's code and message with exit 1", async () => {
+    nextResponse = {
+      status: 400,
+      body: JSON.stringify({
+        code: "idempotency_key_reused",
+        error_details: { message: "Keys can only be reused with the same request body" },
+      }),
+    };
+
+    const code = await frame(
+      ["transfers", "create", "--amount.value", "2", "--idempotency-key", "k1"],
+      [createTransfer]
+    );
+
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toContain(
+      "idempotency_key_reused: Keys can only be reused with the same request body (HTTP 400)"
+    );
+  });
+
+  it("sends no key and offers no --idempotency-key on reads", async () => {
+    nextResponse = { status: 200, body: JSON.stringify(transfer) };
+
+    await frame(["transfers", "retrieve", "tr_123"]);
+
+    expect(requests[0]!.idempotencyKey).toBeUndefined();
+    expect(stderr).not.toContain("idempotency-key");
+    expect(await frame(["transfers", "retrieve", "tr_123", "--idempotency-key", "k"])).toBe(2);
+  });
+});
+
+describe("mutating commands", () => {
+  beforeEach(() => {
+    nextResponse = { status: 200, body: JSON.stringify({ id: "obj_1", status: "ok" }) };
+  });
+
+  it("creates a Core Transfer from dotted flags with an idempotency key", async () => {
+    const code = await frame([
+      "transfers",
+      "create",
+      "--amount.value",
+      "2500",
+      "--amount.currency",
+      "usd",
+      "--source.payment_method_id",
+      "pm_ach",
+      "--confirm",
+    ]);
+
+    expect(code).toBe(0);
+    expect(requests[0]!.method).toBe("POST");
+    expect(requests[0]!.url).toBe("/v2/transfers");
+    expect(requests[0]!.idempotencyKey).toMatch(UUID_V4);
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      amount: { value: 2500, currency: "usd" },
+      source: { payment_method_id: "pm_ach" },
+      confirm: true,
+    });
+  });
+
+  it.each([
+    [["transfers", "confirm", "tr_1"], "/v2/transfers/tr_1/confirm"],
+    [["transfers", "refund", "tr_1"], "/v2/transfers/tr_1/refund"],
+    [["transfers", "capture", "tr_1"], "/v2/transfers/tr_1/capture"],
+    [["transfers", "void", "tr_1"], "/v2/transfers/tr_1/void"],
+    [["payment-methods", "block", "pm_1"], "/v1/payment_methods/pm_1/block"],
+    [["payment-methods", "unblock", "pm_1"], "/v1/payment_methods/pm_1/unblock"],
+    [["payment-methods", "detach", "pm_1"], "/v1/payment_methods/pm_1/detach"],
+  ])("frame %j POSTs to %s with an idempotency key", async (args, path) => {
+    expect(await frame(args)).toBe(0);
+
+    expect(requests[0]!.method).toBe("POST");
+    expect(requests[0]!.url).toBe(path);
+    expect(requests[0]!.idempotencyKey).toMatch(UUID_V4);
+  });
+
+  it("attaches a payment method to an account", async () => {
+    await frame(["payment-methods", "attach", "pm_1", "--account", "acct_1"]);
+
+    expect(requests[0]!.url).toBe("/v1/payment_methods/pm_1/attach");
+    expect(JSON.parse(requests[0]!.body)).toEqual({ account: "acct_1" });
+  });
+
+  it("creates an ACH payment method from flags", async () => {
+    await frame([
+      "payment-methods",
+      "create",
+      "--type",
+      "ach",
+      "--account",
+      "acct_1",
+      "--account_number",
+      "1234567890",
+      "--routing_number",
+      "011000015",
+      "--account_type",
+      "checking",
+    ]);
+
+    expect(requests[0]!.url).toBe("/v1/payment_methods");
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      type: "ach",
+      account: "acct_1",
+      account_number: "1234567890",
+      routing_number: "011000015",
+      account_type: "checking",
+    });
+  });
+
+  it("creates an account from deeply dotted profile flags", async () => {
+    await frame([
+      "accounts",
+      "create",
+      "--type",
+      "individual",
+      "--profile.individual.name.first_name",
+      "Ada",
+      "--profile.individual.email",
+      "ada@example.com",
+    ]);
+
+    expect(requests[0]!.url).toBe("/v1/accounts");
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      type: "individual",
+      profile: { individual: { name: { first_name: "Ada" }, email: "ada@example.com" } },
+    });
+  });
+
+  it("requests capabilities named as positional arguments", async () => {
+    nextResponse = {
+      status: 200,
+      body: JSON.stringify({ data: [{ name: "bank_account_receive", status: "pending" }] }),
+    };
+
+    const code = await frame(["capabilities", "request", "acct_1", "bank_account_receive", "kyc"]);
+
+    expect(code).toBe(0);
+    expect(requests[0]!.url).toBe("/v1/accounts/acct_1/capabilities");
+    expect(requests[0]!.idempotencyKey).toMatch(UUID_V4);
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      capabilities: ["bank_account_receive", "kyc"],
+    });
+    expect(stdout).toMatch(/bank_account_receive\s+pending/);
+  });
+
+  it("exits 2 on an unknown capability without calling the API", async () => {
+    expect(await frame(["capabilities", "request", "acct_1", "teleport"])).toBe(2);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("renders a 422 ACH refusal as the API's code and message with exit 1", async () => {
+    nextResponse = {
+      status: 422,
+      body: JSON.stringify({
+        code: "merchant_blocklist",
+        error_details: { message: "This payment method is blocked" },
+      }),
+    };
+
+    const code = await frame(["transfers", "confirm", "tr_1"]);
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("merchant_blocklist: This payment method is blocked (HTTP 422)");
   });
 });
 

@@ -114,10 +114,16 @@ export class ApiError extends Error {
 export interface ApiResponse {
   text: string;
   body: unknown;
+  headers: Headers;
 }
 
 export interface ApiClient {
-  send(method: string, path: string, body?: unknown): Promise<ApiResponse>;
+  send(
+    method: string,
+    path: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse>;
   get<T = unknown>(path: string): Promise<T>;
   post<T = unknown>(path: string, body?: unknown): Promise<T>;
   patch<T = unknown>(path: string, body?: unknown): Promise<T>;
@@ -192,11 +198,17 @@ function parseServerError(body: unknown): ({ message: string } & ApiErrorExtras)
 export function createApiClient(opts: ApiClientOptions): ApiClient {
   const base = opts.baseUrl ?? DEFAULT_BASE_URL;
 
-  async function send(method: string, path: string, reqBody?: unknown): Promise<ApiResponse> {
+  async function send(
+    method: string,
+    path: string,
+    reqBody?: unknown,
+    extraHeaders: Record<string, string> = {}
+  ): Promise<ApiResponse> {
     const url = `${base}${path}`;
     const resp = await fetch(url, {
       method,
       headers: {
+        ...extraHeaders,
         Authorization: `Bearer ${opts.apiKey}`,
         "Content-Type": "application/json",
       },
@@ -223,7 +235,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
       throw new ApiError(resp.status, message, extras);
     }
 
-    return { text: rawText, body: responseBody };
+    return { text: rawText, body: responseBody, headers: resp.headers };
   }
 
   async function request<T>(method: string, path: string, reqBody?: unknown): Promise<T> {

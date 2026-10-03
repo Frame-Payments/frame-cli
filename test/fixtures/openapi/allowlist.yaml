@@ -6,6 +6,13 @@ resources:
       list: GET /v2/transfers
       retrieve: GET /v2/transfers/{id}
       create: POST /v2/transfers
+  capabilities:
+    description: Account capabilities
+    columns: [name, status]
+    operations:
+      request:
+        operation: POST /v1/accounts/{account_id}/capabilities
+        arguments: [capabilities]
 deprecated:
   customers: accounts
   payouts: transfers

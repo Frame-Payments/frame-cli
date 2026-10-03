@@ -12,6 +12,50 @@ resources:
     operations:
       list: GET /v2/transfers
       retrieve: GET /v2/transfers/{id}
+      create: POST /v2/transfers
+      confirm: POST /v2/transfers/{id}/confirm
+      refund: POST /v2/transfers/{id}/refund
+      capture: POST /v2/transfers/{id}/capture
+      void: POST /v2/transfers/{id}/void
+  payment-methods:
+    description: PaymentMethods — cards and bank accounts a Transfer moves money from or to
+    columns:
+      - id
+      - type
+      - status
+      - account_id
+      - ach.account_type
+      - ach.last_four
+    operations:
+      create: POST /v1/payment_methods
+      retrieve: GET /v1/payment_methods/{id}
+      list: GET /v1/payment_methods
+      block: POST /v1/payment_methods/{id}/block
+      unblock: POST /v1/payment_methods/{id}/unblock
+      attach: POST /v1/payment_methods/{id}/attach
+      detach: POST /v1/payment_methods/{id}/detach
+  accounts:
+    description: Accounts — the parties a merchant transacts with
+    columns:
+      - id
+      - type
+      - status
+      - external_id
+    operations:
+      create: POST /v1/accounts
+      retrieve: GET /v1/accounts/{id}
+      list: GET /v1/accounts
+  capabilities:
+    description: Capabilities — permissions an Account requests
+    columns:
+      - name
+      - status
+      - disabled_reason
+    operations:
+      request:
+        operation: POST /v1/accounts/{account_id}/capabilities
+        arguments:
+          - capabilities
 deprecated:
   customers: accounts
   charge-intents: transfers

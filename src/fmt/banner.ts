@@ -9,6 +9,7 @@
 export interface BannerContext {
   merchant: string;
   mode: "sandbox" | "live";
+  idempotencyKey?: string;
 }
 
 export function formatBanner(ctx: BannerContext): string {
@@ -16,6 +17,7 @@ export function formatBanner(ctx: BannerContext): string {
     `┌─ Frame CLI ─────────────────────────────────────`,
     `│  mode: ${ctx.mode}`,
     `│  merchant: ${ctx.merchant}`,
+    ...(ctx.idempotencyKey === undefined ? [] : [`│  idempotency-key: ${ctx.idempotencyKey}`]),
     `└─────────────────────────────────────────────────`,
   ].join("\n");
 }

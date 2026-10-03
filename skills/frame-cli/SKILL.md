@@ -65,6 +65,12 @@ or `dbus-launch`).
 | `frame events resend <evt_id>` | Resend a past sandbox event by ID |
 | `frame transfers list` | List Core Transfers |
 | `frame transfers retrieve <id>` | Retrieve one Core Transfer |
+| `frame transfers create` | Create a Core Transfer |
+| `frame transfers confirm\|refund\|capture\|void <id>` | Member actions on a Core Transfer |
+| `frame payment-methods create\|list\|retrieve` | Manage PaymentMethods |
+| `frame payment-methods block\|unblock\|attach\|detach <id>` | Member actions on a PaymentMethod |
+| `frame accounts create\|list\|retrieve` | Manage Accounts |
+| `frame capabilities request <account_id> <capabilities...>` | Request Capabilities for an Account |
 | `frame open [page]` | Open a Frame dashboard page in the browser |
 
 ---
@@ -112,6 +118,25 @@ host (e.g. a local `api.framepayments.test`).
 ```bash
 frame transfers list --limit 10 --type payment
 frame transfers retrieve tr_abc123 --json | jq .status
+```
+
+### Mutating commands (`create`, member actions, `capabilities request`)
+Request-body fields are flags named after the API field, nested fields dotted
+(`--profile.individual.name.first_name`); `--body <json-or-@file>` supplies a
+raw body that flags override. Every one sends an `Idempotency-Key` header: a
+fresh UUID v4, printed on stderr with the banner, or `--idempotency-key <key>`
+verbatim. Reuse a key with the same body to replay; the replay prints
+`Idempotent-Replay: true` on stderr.
+
+```bash
+ACCT=$(frame accounts create --type individual \
+  --profile.individual.name.first_name Ada --json | jq -r .id)
+frame capabilities request "$ACCT" bank_account_receive
+PM=$(frame payment-methods create --type ach --account "$ACCT" \
+  --account_number 1234567890 --routing_number 011000015 --account_type checking \
+  --json | jq -r .id)
+frame transfers create --amount.value 2500 --amount.currency usd \
+  --source.payment_method_id "$PM" --confirm --idempotency-key order-42
 ```
 
 `frame customers`, `frame charge-intents` and `frame payouts` are deprecated

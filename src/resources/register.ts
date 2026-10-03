@@ -1,10 +1,13 @@
-import { InvalidArgumentError, Option, type Command } from "commander";
+import { Argument, InvalidArgumentError, Option, type Command } from "commander";
 import { UsageError } from "../fmt/error.js";
-import type {
-  DeprecatedResource,
-  FlagDefinition,
-  OperationDefinition,
-  ResourceDefinition,
+import {
+  sendsIdempotencyKey,
+  type Positional,
+  type BodyArgumentDefinition,
+  type DeprecatedResource,
+  type FlagDefinition,
+  type OperationDefinition,
+  type ResourceDefinition,
 } from "./definition.js";
 
 function parseNumber(integer: boolean): (raw: string) => number {
@@ -26,8 +29,23 @@ function optionFor(flag: FlagDefinition): Option {
   return option;
 }
 
+function argumentFor(definition: BodyArgumentDefinition): Argument {
+  const argument = new Argument(
+    `<${definition.name}${definition.variadic ? "..." : ""}>`,
+    definition.description
+  );
+  return definition.choices === undefined ? argument : argument.choices(definition.choices);
+}
+
+function toPositional(value: unknown): Positional {
+  return Array.isArray(value) ? value.map(String) : String(value);
+}
+
 function usageLine(resource: ResourceDefinition, operation: OperationDefinition): string {
-  const args = operation.pathParams.map(({ name }) => `<${name}>`);
+  const args = [
+    ...operation.pathParams.map(({ name }) => `<${name}>`),
+    ...operation.bodyArguments.map(({ name, variadic }) => `<${name}${variadic ? "..." : ""}>`),
+  ];
   return ["frame", resource.command, operation.verb, ...args].join(" ");
 }
 
@@ -45,11 +63,18 @@ function registerOperation(
     );
 
   for (const param of operation.pathParams) command.argument(`<${param.name}>`, param.description);
+  for (const definition of operation.bodyArguments) command.addArgument(argumentFor(definition));
   for (const flag of operation.flags) command.addOption(optionFor(flag));
   if (operation.acceptsBody) {
     command.option(
       "--body <json-or-@file>",
       "Raw JSON request body, or @path to a JSON file; flags override its fields"
+    );
+  }
+  if (sendsIdempotencyKey(operation)) {
+    command.option(
+      "--idempotency-key <key>",
+      "Idempotency-Key header to send instead of a fresh UUID v4; reuse one to replay a request"
     );
   }
   command
@@ -59,7 +84,9 @@ function registerOperation(
       "Override the API base URL (falls back to $FRAME_API_BASE_URL, then the stored credential)"
     )
     .action(async (...args: unknown[]) => {
-      const positionals = args.slice(0, operation.pathParams.length).map(String);
+      const positionals = args
+        .slice(0, operation.pathParams.length + operation.bodyArguments.length)
+        .map(toPositional);
       const options = command.opts<Record<string, unknown>>();
       const { executeOperation } = await import("./execute.js");
       await executeOperation(resource, operation, positionals, options);

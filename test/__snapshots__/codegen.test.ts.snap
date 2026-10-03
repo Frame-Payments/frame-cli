@@ -21,6 +21,7 @@ export const transfers: ResourceDefinition = {
       "path": "/v2/transfers",
       "summary": "List Core Transfers",
       "pathParams": [],
+      "bodyArguments": [],
       "flags": [
         {
           "flag": "limit",
@@ -58,6 +59,7 @@ export const transfers: ResourceDefinition = {
           "description": "Transfer id"
         }
       ],
+      "bodyArguments": [],
       "flags": [],
       "acceptsBody": false
     },
@@ -67,6 +69,7 @@ export const transfers: ResourceDefinition = {
       "path": "/v2/transfers",
       "summary": "Create a Core Transfer",
       "pathParams": [],
+      "bodyArguments": [],
       "flags": [
         {
           "flag": "amount.value",
@@ -113,11 +116,51 @@ export const transfers: ResourceDefinition = {
   ]
 };
 
+// capabilities.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const capabilities: ResourceDefinition = {
+  "command": "capabilities",
+  "description": "Account capabilities",
+  "columns": [
+    "name",
+    "status"
+  ],
+  "operations": [
+    {
+      "verb": "request",
+      "method": "POST",
+      "path": "/v1/accounts/{account_id}/capabilities",
+      "summary": "Request capabilities for an Account",
+      "pathParams": [
+        {
+          "name": "account_id",
+          "description": "Account id"
+        }
+      ],
+      "bodyArguments": [
+        {
+          "name": "capabilities",
+          "description": "Capabilities to request",
+          "variadic": true,
+          "choices": [
+            "card_receive",
+            "bank_account_receive"
+          ]
+        }
+      ],
+      "flags": [],
+      "acceptsBody": true
+    }
+  ]
+};
+
 // index.ts
 import type { DeprecatedResource, ResourceDefinition } from "../../resources/definition.js";
 import { transfers } from "./transfers.js";
+import { capabilities } from "./capabilities.js";
 
-export const resources: ResourceDefinition[] = [transfers];
+export const resources: ResourceDefinition[] = [transfers, capabilities];
 
 export const deprecatedResources: DeprecatedResource[] = [
   {
