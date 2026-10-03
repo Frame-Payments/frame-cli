@@ -50,7 +50,7 @@ For each plannable issue, assign the branch name `sandcastle/{id-lowercase}` (e.
 
 # OUTPUT
 
-Output your plan as a JSON object wrapped in `<plan>` tags:
+Do all of your reasoning first, before the plan. Check every candidate against `<merged-slices>` while reasoning, so the plan you write is final. Then output the plan as a JSON object wrapped in `<plan>` tags. Emit exactly one `<plan>` block, as the last thing in your answer. Never write a second plan to correct the first; only the final plan block is read, so get it right before writing it.
 
 <plan>
 {"issues": [

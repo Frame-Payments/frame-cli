@@ -260,11 +260,12 @@ async function plan(): Promise<Slice[]> {
     },
   });
 
-  const planMatch = result.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
-  if (!planMatch) {
+  const planMatches = [...result.stdout.matchAll(/<plan>([\s\S]*?)<\/plan>/g)];
+  const finalPlan = planMatches.at(-1);
+  if (!finalPlan) {
     throw new Error("Planning agent did not produce a <plan> tag.\n\n" + result.stdout);
   }
-  const { issues } = JSON.parse(planMatch[1]!) as { issues: Slice[] };
+  const { issues } = JSON.parse(finalPlan[1]!) as { issues: Slice[] };
 
   const merged = new Set(mergedSlices);
   for (const slice of issues) {
