@@ -1,13 +1,13 @@
 import { Argument, InvalidArgumentError, Option, type Command } from "commander";
 import { UsageError } from "../fmt/error.js";
 import {
-  acceptsWait,
   sendsIdempotencyKey,
   type BodyArgumentDefinition,
   type DeprecatedResource,
   type FlagDefinition,
   type OperationDefinition,
   type ResourceDefinition,
+  type WaitDefinition,
 } from "./definition.js";
 
 function parseNumber(integer: boolean): (raw: string) => number {
@@ -23,15 +23,20 @@ function parseNumber(integer: boolean): (raw: string) => number {
 const DURATION_UNITS_MS: Record<string, number> = { ms: 1, s: 1000, m: 60_000 };
 
 function parseDuration(raw: string): number {
-  const match = /^(\d+)(ms|s|m)$/.exec(raw.trim());
-  if (match === null) throw new InvalidArgumentError("Expected a duration like 500ms, 5s or 2m.");
-  return Number(match[1]) * DURATION_UNITS_MS[match[2]!]!;
+  const [, amount, unit] = /^(\d+)(ms|s|m)$/.exec(raw.trim()) ?? [];
+  const unitMs = unit === undefined ? undefined : DURATION_UNITS_MS[unit];
+  if (amount === undefined || unitMs === undefined) {
+    throw new InvalidArgumentError("Expected a duration like 500ms, 5s or 2m.");
+  }
+  return Number(amount) * unitMs;
 }
 
-function addWaitOptions(command: Command, resource: ResourceDefinition): void {
-  const terminal = resource.wait?.terminalStatuses.join(", ") ?? "";
+function addWaitOptions(command: Command, wait: WaitDefinition): void {
   command
-    .option("--wait", `Poll until the status is terminal (${terminal}) and print that body`)
+    .option(
+      "--wait",
+      `Poll until the status is terminal (${wait.terminalStatuses.join(", ")}) and print that body`
+    )
     .addOption(
       new Option("--interval <duration>", "Time between polls with --wait, e.g. 500ms")
         .argParser(parseDuration)
@@ -103,7 +108,8 @@ function registerOperation(
       "Idempotency-Key header to send instead of a fresh UUID v4; reuse one to replay a request"
     );
   }
-  if (acceptsWait(resource, operation)) addWaitOptions(command, resource);
+  const { wait } = resource;
+  if (wait?.verbs.includes(operation.verb) === true) addWaitOptions(command, wait);
   command
     .option("--json", "Print the raw API response body instead of a table")
     .option(

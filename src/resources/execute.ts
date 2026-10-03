@@ -14,7 +14,6 @@ import { UsageError } from "../fmt/error.js";
 import { renderTable, rowsOf } from "../fmt/table.js";
 import { isObject, type JsonObject } from "../json.js";
 import {
-  acceptsWait,
   sendsIdempotencyKey,
   type FlagDefinition,
   type OperationDefinition,
@@ -121,8 +120,7 @@ async function settle(
   options: Options
 ): Promise<ApiResponse> {
   const { wait } = resource;
-  if (options.wait !== true || wait === undefined || !acceptsWait(resource, operation))
-    return response;
+  if (options.wait !== true || wait === undefined) return response;
   const retrieve = retrieveOperation(resource);
   return pollUntilTerminal(
     response,

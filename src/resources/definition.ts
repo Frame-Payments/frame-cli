@@ -60,10 +60,6 @@ export const RESERVED_FLAGS = [
   "help",
 ] as const;
 
-export function acceptsWait(resource: ResourceDefinition, operation: OperationDefinition): boolean {
-  return resource.wait?.verbs.includes(operation.verb) === true;
-}
-
 export function sendsIdempotencyKey(operation: OperationDefinition): boolean {
   return operation.method === "POST";
 }
