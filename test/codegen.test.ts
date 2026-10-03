@@ -94,24 +94,6 @@ describe("generateResourceCommands", () => {
     );
   });
 
-  it.each(["customers", "coupons"])(
-    "fails when the allow-list names %s, a resource outside the canonical set",
-    (command) => {
-      const allowList = {
-        resources: {
-          [command]: {
-            tag: "Transfers",
-            columns: ["id"],
-            operations: { list: "GET /v2/transfers" },
-          },
-        },
-      };
-      expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
-        new RegExp(`${command}.*canonical`)
-      );
-    }
-  );
-
   it("describes each resource with its spec tag's description", () => {
     const source = generatedSource(fixtureSpec, fixtureAllowList);
     expect(source).toContain(

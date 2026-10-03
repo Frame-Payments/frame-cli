@@ -19,16 +19,6 @@ export interface GeneratedFile {
 const HTTP_METHODS: readonly string[] = ["get", "post", "put", "patch", "delete"];
 const SCALAR_TYPES: readonly FlagType[] = ["string", "integer", "number", "boolean"];
 const DEFINITION_MODULE = "../../resources/definition.js";
-const CANONICAL_RESOURCES: readonly string[] = [
-  "accounts",
-  "capabilities",
-  "transfers",
-  "payment-methods",
-  "refunds",
-  "webhooks",
-  "products",
-  "invoices",
-];
 
 function asObject(value: unknown, what: string): JsonObject {
   if (!isObject(value)) throw new Error(`${what} must be an object`);
@@ -273,11 +263,6 @@ function tagDescription(spec: JsonObject, command: string, tag: string): string 
 }
 
 function buildResource(spec: JsonObject, command: string, raw: unknown): ResourceDefinition {
-  if (!CANONICAL_RESOURCES.includes(command)) {
-    throw new Error(
-      `allow-list resource ${command} is not in the canonical set: ${CANONICAL_RESOURCES.join(", ")}`
-    );
-  }
   const entry = asObject(raw, `allow-list resource ${command}`);
   const operations = Object.entries(
     asObject(entry.operations, `allow-list ${command}.operations`)
