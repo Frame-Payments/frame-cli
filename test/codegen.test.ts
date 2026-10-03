@@ -125,7 +125,7 @@ describe("generateResourceCommands", () => {
     const allowList = {
       resources: {
         transfers: {
-          description: "Core Transfers",
+          tag: "Transfers",
           columns: ["id"],
           wait: { terminal_statuses: ["completed"], operations: ["refund"] },
           operations: { retrieve: "GET /v2/transfers/{id}", create: "POST /v2/transfers" },
@@ -141,7 +141,7 @@ describe("generateResourceCommands", () => {
     const allowList = {
       resources: {
         transfers: {
-          description: "Core Transfers",
+          tag: "Transfers",
           columns: ["id"],
           wait: { terminal_statuses: ["completed"], operations: ["create"] },
           operations: { create: "POST /v2/transfers" },
