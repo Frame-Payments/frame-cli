@@ -9,6 +9,9 @@ resources:
       - amount.value
       - amount.currency
       - amount_refunded.value
+    wait:
+      terminal_statuses: [completed, failed, reversed, canceled]
+      operations: [create, confirm]
     operations:
       list: GET /v2/transfers
       retrieve: GET /v2/transfers/{id}

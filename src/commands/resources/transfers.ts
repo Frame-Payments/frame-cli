@@ -244,5 +244,17 @@ export const transfers: ResourceDefinition = {
       "flags": [],
       "acceptsBody": false
     }
-  ]
+  ],
+  "wait": {
+    "terminalStatuses": [
+      "completed",
+      "failed",
+      "reversed",
+      "canceled"
+    ],
+    "verbs": [
+      "create",
+      "confirm"
+    ]
+  }
 };

@@ -106,6 +106,38 @@ describe("generateResourceCommands", () => {
     );
   });
 
+  it("fails when --wait names an operation the resource does not have", () => {
+    const allowList = {
+      resources: {
+        transfers: {
+          description: "Core Transfers",
+          columns: ["id"],
+          wait: { terminal_statuses: ["completed"], operations: ["refund"] },
+          operations: { retrieve: "GET /v2/transfers/{id}", create: "POST /v2/transfers" },
+        },
+      },
+    };
+    expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
+      /transfers\.wait.*refund/
+    );
+  });
+
+  it("fails when a resource declares --wait without a retrieve to poll", () => {
+    const allowList = {
+      resources: {
+        transfers: {
+          description: "Core Transfers",
+          columns: ["id"],
+          wait: { terminal_statuses: ["completed"], operations: ["create"] },
+          operations: { create: "POST /v2/transfers" },
+        },
+      },
+    };
+    expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
+      /transfers\.wait.*retrieve/
+    );
+  });
+
   it("fails when a request field would shadow a built-in flag", () => {
     const spec = structuredClone(fixtureSpec) as {
       components: { schemas: { TransferCreate: { properties: Record<string, unknown> } } };

@@ -31,11 +31,17 @@ export interface OperationDefinition {
   acceptsBody: boolean;
 }
 
+export interface WaitDefinition {
+  terminalStatuses: string[];
+  verbs: string[];
+}
+
 export interface ResourceDefinition {
   command: string;
   description: string;
   columns: string[];
   operations: OperationDefinition[];
+  wait?: WaitDefinition;
 }
 
 export interface DeprecatedResource {
@@ -43,7 +49,20 @@ export interface DeprecatedResource {
   canonical: string;
 }
 
-export const RESERVED_FLAGS = ["json", "body", "base-url", "idempotency-key", "help"] as const;
+export const RESERVED_FLAGS = [
+  "json",
+  "body",
+  "base-url",
+  "idempotency-key",
+  "wait",
+  "interval",
+  "timeout",
+  "help",
+] as const;
+
+export function acceptsWait(resource: ResourceDefinition, operation: OperationDefinition): boolean {
+  return resource.wait?.verbs.includes(operation.verb) === true;
+}
 
 export function sendsIdempotencyKey(operation: OperationDefinition): boolean {
   return operation.method === "POST";

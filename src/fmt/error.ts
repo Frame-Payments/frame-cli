@@ -45,6 +45,10 @@ export class UsageError extends Error {
   override readonly name = "UsageError";
 }
 
+export class WaitTimeoutError extends Error {
+  override readonly name = "WaitTimeoutError";
+}
+
 export function formatError(err: unknown): string {
   if (err instanceof ApiError) {
     const message = err.code === undefined ? err.message : `${err.code}: ${err.message}`;

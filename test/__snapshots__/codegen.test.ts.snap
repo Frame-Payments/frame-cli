@@ -124,7 +124,17 @@ export const transfers: ResourceDefinition = {
       "flags": [],
       "acceptsBody": false
     }
-  ]
+  ],
+  "wait": {
+    "terminalStatuses": [
+      "completed",
+      "failed"
+    ],
+    "verbs": [
+      "create",
+      "confirm"
+    ]
+  }
 };
 
 // payment-methods.ts

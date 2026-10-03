@@ -7,6 +7,7 @@ import {
   type OperationDefinition,
   type PathParamDefinition,
   type ResourceDefinition,
+  type WaitDefinition,
 } from "../resources/definition.js";
 import { isObject, type JsonObject } from "../json.js";
 
@@ -224,16 +225,44 @@ function buildOperation(
   };
 }
 
+function buildWait(command: string, raw: unknown, verbs: string[]): WaitDefinition {
+  const where = `allow-list ${command}.wait`;
+  const entry = asObject(raw, where);
+  if (!verbs.includes("retrieve")) {
+    throw new Error(`${where} needs a retrieve operation to poll`);
+  }
+  const waitVerbs = asStringList(entry.operations, `${where}.operations`);
+  const unknown = waitVerbs.find((verb) => !verbs.includes(verb));
+  if (unknown !== undefined) {
+    throw new Error(
+      `${where}.operations names ${unknown}, which is not an operation of ${command}`
+    );
+  }
+  return {
+    terminalStatuses: asStringList(entry.terminal_statuses, `${where}.terminal_statuses`),
+    verbs: waitVerbs,
+  };
+}
+
 function buildResource(spec: JsonObject, command: string, raw: unknown): ResourceDefinition {
   const entry = asObject(raw, `allow-list resource ${command}`);
-  const operations = asObject(entry.operations, `allow-list ${command}.operations`);
+  const operations = Object.entries(
+    asObject(entry.operations, `allow-list ${command}.operations`)
+  ).map(([verb, operation]) => buildOperation(spec, command, verb, operation));
   return {
     command,
     description: asString(entry.description, `allow-list ${command}.description`),
     columns: asStringList(entry.columns, `allow-list ${command}.columns`),
-    operations: Object.entries(operations).map(([verb, operation]) =>
-      buildOperation(spec, command, verb, operation)
-    ),
+    operations,
+    ...(entry.wait === undefined
+      ? {}
+      : {
+          wait: buildWait(
+            command,
+            entry.wait,
+            operations.map(({ verb }) => verb)
+          ),
+        }),
   };
 }
 

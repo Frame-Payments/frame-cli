@@ -2,6 +2,9 @@ resources:
   transfers:
     description: Core Transfers
     columns: [id, status, payment_status, failure_code, amount.value]
+    wait:
+      terminal_statuses: [completed, failed]
+      operations: [create, confirm]
     operations:
       list: GET /v2/transfers
       retrieve: GET /v2/transfers/{id}

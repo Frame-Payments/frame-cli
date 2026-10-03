@@ -1,8 +1,9 @@
 import { CommanderError, type Command } from "commander";
-import { formatError, UsageError } from "./fmt/error.js";
+import { formatError, UsageError, WaitTimeoutError } from "./fmt/error.js";
 
 const USAGE_EXIT_CODE = 2;
 const FAILURE_EXIT_CODE = 1;
+const WAIT_TIMEOUT_EXIT_CODE = 3;
 
 function throwInsteadOfExiting(command: Command): void {
   command.exitOverride();
@@ -12,6 +13,7 @@ function throwInsteadOfExiting(command: Command): void {
 function exitCodeFor(err: unknown): number {
   if (err instanceof CommanderError) return err.exitCode === 0 ? 0 : USAGE_EXIT_CODE;
   if (err instanceof UsageError) return USAGE_EXIT_CODE;
+  if (err instanceof WaitTimeoutError) return WAIT_TIMEOUT_EXIT_CODE;
   return FAILURE_EXIT_CODE;
 }
 

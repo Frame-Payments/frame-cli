@@ -26,6 +26,7 @@ interface RecordedRequest {
   authorization: string | undefined;
   idempotencyKey: string | undefined;
   body: string;
+  receivedAt: number;
 }
 
 interface StubResponse {
@@ -38,6 +39,7 @@ let server: Server;
 let baseUrl: string;
 let requests: RecordedRequest[];
 let nextResponse: StubResponse;
+let queuedResponses: StubResponse[];
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
@@ -55,12 +57,14 @@ beforeAll(async () => {
       authorization: req.headers.authorization,
       idempotencyKey: req.headers["idempotency-key"] as string | undefined,
       body: await readBody(req),
+      receivedAt: performance.now(),
     });
-    res.writeHead(nextResponse.status, {
+    const response = queuedResponses.shift() ?? nextResponse;
+    res.writeHead(response.status, {
       "Content-Type": "application/json",
-      ...nextResponse.headers,
+      ...response.headers,
     });
-    res.end(nextResponse.body);
+    res.end(response.body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -76,6 +80,7 @@ let stderr: string;
 beforeEach(() => {
   vi.clearAllMocks();
   requests = [];
+  queuedResponses = [];
   stdout = "";
   stderr = "";
   vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
@@ -544,6 +549,130 @@ describe("mutating commands", () => {
 
     expect(code).toBe(1);
     expect(stderr).toContain("merchant_blocklist: This payment method is blocked (HTTP 422)");
+  });
+});
+
+function transferIn(status: string, fields: Record<string, unknown> = {}): StubResponse {
+  return { status: 200, body: JSON.stringify({ id: "tr_1", status, ...fields }) };
+}
+
+describe("--wait", () => {
+  it("creates, then retrieves until the transfer reaches a terminal status", async () => {
+    const settled = transferIn("completed", { payment: { status: "succeeded" } });
+    queuedResponses = [transferIn("pending"), transferIn("pending"), settled];
+
+    const code = await frame([
+      "transfers",
+      "create",
+      "--amount.value",
+      "2500",
+      "--wait",
+      "--interval",
+      "10ms",
+      "--json",
+    ]);
+
+    expect(code).toBe(0);
+    expect(requests.map(({ method, url }) => `${method} ${url}`)).toEqual([
+      "POST /v2/transfers",
+      "GET /v2/transfers/tr_1",
+      "GET /v2/transfers/tr_1",
+    ]);
+    expect(stdout).toBe(settled.body);
+  });
+
+  it("returns a failed transfer with its failure code", async () => {
+    queuedResponses = [transferIn("pending"), transferIn("failed", { failure_code: "R01" })];
+
+    const code = await frame(["transfers", "create", "--wait", "--interval", "10ms"]);
+
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/tr_1\s+failed\s+-\s+R01/);
+  });
+
+  it("reports polling progress on stderr only", async () => {
+    queuedResponses = [transferIn("pending"), transferIn("processing"), transferIn("completed")];
+
+    await frame(["transfers", "create", "--wait", "--interval", "10ms", "--json"]);
+
+    expect(stderr).toContain("tr_1: pending");
+    expect(stderr).toContain("tr_1: processing");
+    expect(stderr).toContain("tr_1: completed");
+    expect(stdout).not.toContain("pending");
+  });
+
+  it("exits 3 naming the last observed status when the timeout elapses", async () => {
+    nextResponse = transferIn("processing");
+
+    const code = await frame([
+      "transfers",
+      "create",
+      "--wait",
+      "--interval",
+      "10ms",
+      "--timeout",
+      "50ms",
+      "--json",
+    ]);
+
+    expect(code).toBe(3);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/Timed out.*tr_1.*last status: processing/);
+  });
+
+  it("spaces retrieves by --interval", async () => {
+    queuedResponses = [transferIn("pending"), transferIn("pending"), transferIn("completed")];
+
+    await frame(["transfers", "create", "--wait", "--interval", "100ms"]);
+
+    const gaps = requests
+      .slice(1)
+      .map((request, index) => request.receivedAt - requests[index]!.receivedAt);
+    expect(gaps).toHaveLength(2);
+    for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(95);
+  });
+
+  it("defaults to a one second interval and a sixty second timeout", async () => {
+    await frame(["transfers", "create", "--help"]);
+
+    expect(stdout).toMatch(/--interval <duration>.*\(default: 1s\)/s);
+    expect(stdout).toMatch(/--timeout <duration>.*\(default: 60s\)/s);
+    expect(stdout).toMatch(/completed, failed, reversed, canceled/);
+  });
+
+  it("returns as soon as the create response is already terminal", async () => {
+    nextResponse = transferIn("completed");
+
+    expect(await frame(["transfers", "create", "--wait"])).toBe(0);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("does not poll without --wait", async () => {
+    nextResponse = transferIn("pending");
+
+    expect(await frame(["transfers", "create"])).toBe(0);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("polls after a confirm", async () => {
+    queuedResponses = [transferIn("processing"), transferIn("completed")];
+
+    expect(await frame(["transfers", "confirm", "tr_1", "--wait", "--interval", "10ms"])).toBe(0);
+    expect(requests.map(({ method, url }) => `${method} ${url}`)).toEqual([
+      "POST /v2/transfers/tr_1/confirm",
+      "GET /v2/transfers/tr_1",
+    ]);
+  });
+
+  it("is not offered on operations that do not declare it", async () => {
+    expect(await frame(["transfers", "refund", "tr_1", "--wait"])).toBe(2);
+    expect(await frame(["accounts", "create", "--wait"])).toBe(2);
+    expect(requests).toHaveLength(0);
+  });
+
+  it.each(["soon", "5", "1h", "-1s"])("exits 2 on the malformed duration %s", async (duration) => {
+    expect(await frame(["transfers", "create", "--wait", "--timeout", duration])).toBe(2);
+    expect(requests).toHaveLength(0);
   });
 });
 

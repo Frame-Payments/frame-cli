@@ -1,6 +1,7 @@
 import { Argument, InvalidArgumentError, Option, type Command } from "commander";
 import { UsageError } from "../fmt/error.js";
 import {
+  acceptsWait,
   sendsIdempotencyKey,
   type BodyArgumentDefinition,
   type DeprecatedResource,
@@ -17,6 +18,30 @@ function parseNumber(integer: boolean): (raw: string) => number {
     }
     return value;
   };
+}
+
+const DURATION_UNITS_MS: Record<string, number> = { ms: 1, s: 1000, m: 60_000 };
+
+function parseDuration(raw: string): number {
+  const match = /^(\d+)(ms|s|m)$/.exec(raw.trim());
+  if (match === null) throw new InvalidArgumentError("Expected a duration like 500ms, 5s or 2m.");
+  return Number(match[1]) * DURATION_UNITS_MS[match[2]!]!;
+}
+
+function addWaitOptions(command: Command, resource: ResourceDefinition): void {
+  const terminal = resource.wait?.terminalStatuses.join(", ") ?? "";
+  command
+    .option("--wait", `Poll until the status is terminal (${terminal}) and print that body`)
+    .addOption(
+      new Option("--interval <duration>", "Time between polls with --wait, e.g. 500ms")
+        .argParser(parseDuration)
+        .default(1000, "1s")
+    )
+    .addOption(
+      new Option("--timeout <duration>", "Give up with exit 3 after this long with --wait, e.g. 2m")
+        .argParser(parseDuration)
+        .default(60_000, "60s")
+    );
 }
 
 function optionFor(flag: FlagDefinition): Option {
@@ -78,6 +103,7 @@ function registerOperation(
       "Idempotency-Key header to send instead of a fresh UUID v4; reuse one to replay a request"
     );
   }
+  if (acceptsWait(resource, operation)) addWaitOptions(command, resource);
   command
     .option("--json", "Print the raw API response body instead of a table")
     .option(

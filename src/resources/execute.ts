@@ -2,17 +2,25 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Option } from "commander";
 import { get } from "../auth/keyring.js";
-import { apiRoot, createApiClient, resolveBaseUrl } from "../auth/api-client.js";
+import {
+  apiRoot,
+  createApiClient,
+  resolveBaseUrl,
+  type ApiClient,
+  type ApiResponse,
+} from "../auth/api-client.js";
 import { runWithBanner } from "../fmt/banner.js";
 import { UsageError } from "../fmt/error.js";
 import { renderTable, rowsOf } from "../fmt/table.js";
 import { isObject, type JsonObject } from "../json.js";
 import {
+  acceptsWait,
   sendsIdempotencyKey,
   type FlagDefinition,
   type OperationDefinition,
   type ResourceDefinition,
 } from "./definition.js";
+import { pollUntilTerminal } from "./wait.js";
 
 type Options = Record<string, unknown>;
 function parseBodyOption(raw: string): JsonObject {
@@ -99,6 +107,35 @@ function idempotencyKeyFor(operation: OperationDefinition, options: Options): st
   return typeof options.idempotencyKey === "string" ? options.idempotencyKey : randomUUID();
 }
 
+function retrieveOperation(resource: ResourceDefinition): OperationDefinition {
+  const retrieve = resource.operations.find(({ verb }) => verb === "retrieve");
+  if (retrieve === undefined) throw new Error(`${resource.command} has no retrieve to poll.`);
+  return retrieve;
+}
+
+async function settle(
+  client: ApiClient,
+  resource: ResourceDefinition,
+  operation: OperationDefinition,
+  response: ApiResponse,
+  options: Options
+): Promise<ApiResponse> {
+  const { wait } = resource;
+  if (options.wait !== true || wait === undefined || !acceptsWait(resource, operation))
+    return response;
+  const retrieve = retrieveOperation(resource);
+  return pollUntilTerminal(
+    response,
+    (id) => client.send(retrieve.method, requestPath(retrieve, [id], {})),
+    {
+      terminalStatuses: wait.terminalStatuses,
+      intervalMs: Number(options.interval),
+      timeoutMs: Number(options.timeout),
+      onStatus: (id, status) => process.stderr.write(`Waiting for ${id}: ${status}\n`),
+    }
+  );
+}
+
 export async function executeOperation(
   resource: ResourceDefinition,
   operation: OperationDefinition,
@@ -129,8 +166,9 @@ export async function executeOperation(
       const response = await client.send(operation.method, path, body, headers);
       const replay = response.headers.get("Idempotent-Replay");
       if (replay !== null) process.stderr.write(`Idempotent-Replay: ${replay}\n`);
+      const settled = await settle(client, resource, operation, response, options);
       process.stdout.write(
-        options.json === true ? response.text : renderTable(resource.columns, rowsOf(response.body))
+        options.json === true ? settled.text : renderTable(resource.columns, rowsOf(settled.body))
       );
     }
   );

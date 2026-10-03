@@ -139,6 +139,17 @@ frame transfers create --amount.value 2500 --amount.currency usd \
   --source.payment_method_id "$PM" --confirm --idempotency-key order-42
 ```
 
+`--wait` on `transfers create` and `transfers confirm` polls the transfer every
+`--interval` (default `1s`) until it is `completed`, `failed`, `reversed` or
+`canceled`, then prints that final body; progress goes to stderr. Durations
+read `500ms`, `5s` or `2m`. After `--timeout` (default `60s`) it exits 3 naming
+the last observed status.
+
+```bash
+frame transfers create --amount.value 2500 --amount.currency usd \
+  --source.payment_method_id "$PM" --confirm --wait --json | jq -r .status
+```
+
 `frame customers`, `frame charge-intents` and `frame payouts` are deprecated
 resources: they print the canonical command to use and exit non-zero.
 
