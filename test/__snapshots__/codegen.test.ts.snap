@@ -1,0 +1,133 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateResourceCommands > emits the command tree for the allow-listed operations 1`] = `
+"// transfers.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const transfers: ResourceDefinition = {
+  "command": "transfers",
+  "description": "Core Transfers",
+  "columns": [
+    "id",
+    "status",
+    "payment_status",
+    "failure_code",
+    "amount.value"
+  ],
+  "operations": [
+    {
+      "verb": "list",
+      "method": "GET",
+      "path": "/v2/transfers",
+      "summary": "List Core Transfers",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "limit",
+          "location": "query",
+          "path": [
+            "limit"
+          ],
+          "type": "integer",
+          "description": "Maximum number of transfers to return"
+        },
+        {
+          "flag": "type",
+          "location": "query",
+          "path": [
+            "type"
+          ],
+          "type": "string",
+          "description": "Only return transfers of this type",
+          "choices": [
+            "payment",
+            "payout"
+          ]
+        }
+      ],
+      "acceptsBody": false
+    },
+    {
+      "verb": "retrieve",
+      "method": "GET",
+      "path": "/v2/transfers/{id}",
+      "summary": "Retrieve a Core Transfer",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Transfer id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    },
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v2/transfers",
+      "summary": "Create a Core Transfer",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "amount.value",
+          "location": "body",
+          "path": [
+            "amount",
+            "value"
+          ],
+          "type": "integer",
+          "description": "Amount in the smallest currency unit"
+        },
+        {
+          "flag": "amount.currency",
+          "location": "body",
+          "path": [
+            "amount",
+            "currency"
+          ],
+          "type": "string",
+          "description": "Three-letter ISO currency code"
+        },
+        {
+          "flag": "source.payment_method_id",
+          "location": "body",
+          "path": [
+            "source",
+            "payment_method_id"
+          ],
+          "type": "string",
+          "description": "Payment method the funds are pulled from"
+        },
+        {
+          "flag": "confirm",
+          "location": "body",
+          "path": [
+            "confirm"
+          ],
+          "type": "boolean",
+          "description": "Confirm the transfer immediately"
+        }
+      ],
+      "acceptsBody": true
+    }
+  ]
+};
+
+// index.ts
+import type { DeprecatedResource, ResourceDefinition } from "../../resources/definition.js";
+import { transfers } from "./transfers.js";
+
+export const resources: ResourceDefinition[] = [transfers];
+
+export const deprecatedResources: DeprecatedResource[] = [
+  {
+    "command": "customers",
+    "canonical": "accounts"
+  },
+  {
+    "command": "payouts",
+    "canonical": "transfers"
+  }
+];
+"
+`;

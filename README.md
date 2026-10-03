@@ -50,6 +50,8 @@ Your local server receives webhook payloads within seconds of the events being p
 | [`frame whoami`](https://github.com/Frame-Payments/frame-cli#readme) | Show the currently authenticated merchant |
 | [`frame listen`](https://github.com/Frame-Payments/frame-cli#readme) | Forward sandbox webhook events to a local URL |
 | [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
+| [`frame transfers list`](https://github.com/Frame-Payments/frame-cli#readme) | List Core Transfers (`--limit`, `--type`, `--json`) |
+| [`frame transfers retrieve <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Retrieve a Core Transfer |
 | [`frame open [page]`](https://github.com/Frame-Payments/frame-cli#readme) | Open a dashboard page in the default browser |
 
 Run `frame <command> --help` for options and examples on any command.
@@ -90,6 +92,8 @@ Start with [`CONTEXT.md`](./CONTEXT.md) for the canonical-vs-deprecated vocabula
 3. **`skills/frame-cli/SKILL.md` entry** — document the command in the Per-command details section
 
 A CI test validates the skill frontmatter.
+
+**Adding a resource command?** Resource commands (`frame transfers …`) are generated, not hand-written. Add the operation to [`codegen/allowlist.yaml`](./codegen/allowlist.yaml), refresh [`vendor/openapi/frame.yaml`](./vendor/openapi/frame.yaml) if needed, and run `npm run codegen`. Operations missing from the allow-list never get a command; CI fails if the generated files drift.
 
 ---
 

@@ -1,0 +1,18 @@
+resources:
+  transfers:
+    description: Core Transfers — money movement in either direction
+    columns:
+      - id
+      - status
+      - payment_status
+      - failure_code
+      - amount.value
+      - amount.currency
+      - amount_refunded.value
+    operations:
+      list: GET /v2/transfers
+      retrieve: GET /v2/transfers/{id}
+deprecated:
+  customers: accounts
+  charge-intents: transfers
+  payouts: transfers

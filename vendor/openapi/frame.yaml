@@ -1,0 +1,160 @@
+openapi: 3.0.3
+info:
+  title: Frame API
+  version: "2025-01-01"
+servers:
+  - url: https://api.framepayments.com
+paths:
+  /v2/transfers:
+    get:
+      operationId: listTransfers
+      summary: List Core Transfers
+      tags: [Transfers]
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of transfers to return (1-100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: page
+          in: query
+          description: Page number to return, starting at 1
+          schema:
+            type: integer
+            minimum: 1
+        - name: type
+          in: query
+          description: Only return transfers of this type
+          schema:
+            type: string
+            enum: [payment, payout]
+        - name: status
+          in: query
+          description: Only return transfers with this status
+          schema:
+            type: string
+        - name: account
+          in: query
+          description: Only return transfers involving this Account id
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of Core Transfers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferList"
+        "401":
+          $ref: "#/components/responses/Error"
+  /v2/transfers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id of the Core Transfer
+        schema:
+          type: string
+    get:
+      operationId: retrieveTransfer
+      summary: Retrieve a Core Transfer
+      tags: [Transfers]
+      responses:
+        "200":
+          description: The Core Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "404":
+          $ref: "#/components/responses/Error"
+  /v1/transfers:
+    get:
+      operationId: listV1Transfers
+      summary: List V1 transfers
+      deprecated: true
+      tags: [Transfers]
+      responses:
+        "200":
+          description: A page of V1 transfers
+  /v1/customers:
+    get:
+      operationId: listCustomers
+      summary: List customers
+      deprecated: true
+      tags: [Customers]
+      responses:
+        "200":
+          description: A page of customers
+  /v1/charge_intents:
+    get:
+      operationId: listChargeIntents
+      summary: List charge intents
+      deprecated: true
+      tags: [ChargeIntents]
+      responses:
+        "200":
+          description: A page of charge intents
+components:
+  responses:
+    Error:
+      description: An API error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Amount:
+      type: object
+      properties:
+        value:
+          type: integer
+          description: Amount in the smallest currency unit
+        currency:
+          type: string
+          description: Three-letter ISO currency code
+    Transfer:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        type:
+          type: string
+          enum: [payment, payout]
+        status:
+          type: string
+        payment_status:
+          type: string
+          nullable: true
+        failure_code:
+          type: string
+          nullable: true
+        amount:
+          $ref: "#/components/schemas/Amount"
+        amount_refunded:
+          $ref: "#/components/schemas/Amount"
+        created:
+          type: integer
+    TransferList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transfer"
+        meta:
+          type: object
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        error_details:
+          type: object
+          properties:
+            message:
+              type: string

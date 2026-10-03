@@ -1,0 +1,96 @@
+openapi: 3.0.3
+info:
+  title: Frame API fixture
+  version: "2024-01-01"
+paths:
+  /v2/transfers:
+    get:
+      operationId: listTransfers
+      summary: List Core Transfers
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - name: type
+          in: query
+          description: Only return transfers of this type
+          schema:
+            type: string
+            enum: [payment, payout]
+      responses:
+        "200":
+          description: A page of transfers
+    post:
+      operationId: createTransfer
+      summary: Create a Core Transfer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferCreate"
+      responses:
+        "201":
+          description: The created transfer
+  /v2/transfers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Transfer id
+        schema:
+          type: string
+    get:
+      operationId: retrieveTransfer
+      summary: Retrieve a Core Transfer
+      responses:
+        "200":
+          description: The transfer
+  /v1/transfers:
+    get:
+      operationId: listLegacyTransfers
+      summary: List V1 transfers
+      responses:
+        "200":
+          description: A page of V1 transfers
+  /v1/customers:
+    get:
+      operationId: listCustomers
+      summary: List customers
+      responses:
+        "200":
+          description: A page of customers
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of transfers to return
+      schema:
+        type: integer
+  schemas:
+    TransferCreate:
+      type: object
+      properties:
+        amount:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Amount in the smallest currency unit
+            currency:
+              type: string
+              description: Three-letter ISO currency code
+        source:
+          type: object
+          properties:
+            payment_method_id:
+              type: string
+              description: Payment method the funds are pulled from
+        confirm:
+          type: boolean
+          description: Confirm the transfer immediately
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+        line_items:
+          type: array
+          items:
+            type: string

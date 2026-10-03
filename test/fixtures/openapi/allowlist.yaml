@@ -1,0 +1,11 @@
+resources:
+  transfers:
+    description: Core Transfers
+    columns: [id, status, payment_status, failure_code, amount.value]
+    operations:
+      list: GET /v2/transfers
+      retrieve: GET /v2/transfers/{id}
+      create: POST /v2/transfers
+deprecated:
+  customers: accounts
+  payouts: transfers

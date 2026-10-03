@@ -63,6 +63,8 @@ or `dbus-launch`).
 | `frame whoami` | Print the authenticated identity |
 | `frame listen` | Forward sandbox webhooks to a local server |
 | `frame events resend <evt_id>` | Resend a past sandbox event by ID |
+| `frame transfers list` | List Core Transfers |
+| `frame transfers retrieve <id>` | Retrieve one Core Transfer |
 | `frame open [page]` | Open a Frame dashboard page in the browser |
 
 ---
@@ -99,6 +101,21 @@ reproduce a flaky delivery without re-triggering the full fixture sequence.
 ```bash
 frame events resend evt_abc123
 ```
+
+### `frame transfers list` / `frame transfers retrieve <id>`
+Read Core Transfers. Output is a table (id, status, payment status, failure
+code, amounts) by default; `--json` prints the raw API body to stdout and
+nothing else, so it pipes cleanly into `jq`. API errors print the API's `code`
+and message and exit 1; usage errors exit 2. `--base-url` points at another
+host (e.g. a local `api.framepayments.test`).
+
+```bash
+frame transfers list --limit 10 --type payment
+frame transfers retrieve tr_abc123 --json | jq .status
+```
+
+`frame customers`, `frame charge-intents` and `frame payouts` are deprecated
+resources: they print the canonical command to use and exit non-zero.
 
 ### `frame open [page]`
 Opens a Frame dashboard page in the default browser. Run without `[page]` to

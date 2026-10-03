@@ -13,7 +13,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { checkForUpdates } from "./update-check/update-check.js";
-import { formatError } from "./fmt/error.js";
+import { runProgram } from "./run-program.js";
+import { registerResources } from "./resources/register.js";
+import { deprecatedResources, resources } from "./commands/resources/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -162,6 +164,8 @@ Examples:
     await run({ eventId: evtId });
   });
 
+registerResources(program, resources, deprecatedResources);
+
 // `frame open [<page>]`
 program
   .command("open [page]")
@@ -199,21 +203,5 @@ program.hook("preAction", async () => {
   await checkForUpdates({ currentVersion: pkg.version });
 });
 
-// Top-level error handling.
-//
-// Without this, any thrown error (most commonly an ApiError from a failed
-// request) propagates to bin/frame and is rendered as a raw Node stack trace,
-// which is noisy and unhelpful for the actual failure modes (auth, validation,
-// network). We funnel everything through `formatError` for a clean message.
-//
-// Set FRAME_DEBUG=1 to opt back into the full stack when debugging the CLI
-// itself.
-try {
-  await program.parseAsync(process.argv);
-} catch (err) {
-  process.stderr.write(`${formatError(err)}\n`);
-  if (process.env.FRAME_DEBUG === "1" && err instanceof Error && err.stack) {
-    process.stderr.write(`\n${err.stack}\n`);
-  }
-  process.exit(1);
-}
+const exitCode = await runProgram(program, process.argv);
+if (exitCode !== 0) process.exit(exitCode);

@@ -41,9 +41,14 @@ function flattenDetails(node: unknown, path: string[] = []): string[] {
   return [];
 }
 
+export class UsageError extends Error {
+  override readonly name = "UsageError";
+}
+
 export function formatError(err: unknown): string {
   if (err instanceof ApiError) {
-    const lines = [`Error: ${err.message} (HTTP ${err.status})`];
+    const message = err.code === undefined ? err.message : `${err.code}: ${err.message}`;
+    const lines = [`Error: ${message} (HTTP ${err.status})`];
     if (err.details !== undefined) {
       const detail_lines = flattenDetails(err.details);
       if (detail_lines.length > 0) {
