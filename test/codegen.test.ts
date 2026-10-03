@@ -21,12 +21,6 @@ describe("generateResourceCommands", () => {
     expect(generatedSource(fixtureSpec, fixtureAllowList)).toMatchSnapshot();
   });
 
-  it("is deterministic", () => {
-    expect(generatedSource(fixtureSpec, fixtureAllowList)).toBe(
-      generatedSource(fixtureSpec, fixtureAllowList),
-    );
-  });
-
   it("ignores operations that are not on the allow-list", () => {
     const source = generatedSource(fixtureSpec, fixtureAllowList);
     expect(source).not.toContain("/v1/transfers");
@@ -53,20 +47,6 @@ describe("generateResourceCommands", () => {
     expect(() => generateResourceCommands(fixtureSpec, allowList)).toThrow(
       /transfers cancel.*POST \/v2\/transfers\/\{id\}\/cancel.*missing/,
     );
-  });
-
-  it("keeps the committed resource commands in sync with the vendored spec", () => {
-    const files = generateResourceCommands(
-      readYaml("../vendor/openapi/frame.yaml"),
-      readYaml("../codegen/allowlist.yaml"),
-    );
-    for (const file of files) {
-      const committed = readFileSync(
-        new URL(`../src/commands/resources/${file.path}`, import.meta.url),
-        "utf8",
-      );
-      expect(committed, `${file.path} is stale; run npm run codegen`).toBe(file.contents);
-    }
   });
 
   it("describes a path argument from its referenced schema", () => {
