@@ -6,6 +6,18 @@ resources:
       list: GET /v2/transfers
       retrieve: GET /v2/transfers/{id}
       create: POST /v2/transfers
+      confirm: POST /v2/transfers/{id}/confirm
+  payment-methods:
+    description: PaymentMethods
+    columns: [id, type, status, ach.last_four]
+    operations:
+      create: POST /v1/payment_methods
+      block: POST /v1/payment_methods/{id}/block
+  accounts:
+    description: Accounts
+    columns: [id, type, status]
+    operations:
+      create: POST /v1/accounts
   capabilities:
     description: Account capabilities
     columns: [name, status]

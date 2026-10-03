@@ -43,6 +43,89 @@ paths:
       responses:
         "200":
           description: The transfer
+  /v2/transfers/{id}/confirm:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Transfer id
+        schema:
+          type: string
+    post:
+      operationId: confirmTransfer
+      summary: Confirm a Core Transfer
+      responses:
+        "200":
+          description: The transfer
+  /v1/payment_methods:
+    post:
+      operationId: createPaymentMethod
+      summary: Create a PaymentMethod
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: Kind of payment method
+                  enum: [card, ach]
+                account:
+                  type: string
+                  description: Account id to attach the payment method to
+                account_number:
+                  type: string
+                  description: Bank account number (ach)
+                routing_number:
+                  type: string
+                  description: Nine-digit ABA routing number (ach)
+      responses:
+        "201":
+          description: The created PaymentMethod
+  /v1/payment_methods/{id}/block:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: PaymentMethod id
+        schema:
+          type: string
+    post:
+      operationId: blockPaymentMethod
+      summary: Block a PaymentMethod
+      responses:
+        "200":
+          description: The PaymentMethod
+  /v1/accounts:
+    post:
+      operationId: createAccount
+      summary: Create an Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: Kind of party the Account represents
+                  enum: [individual, business]
+                profile:
+                  type: object
+                  properties:
+                    individual:
+                      type: object
+                      properties:
+                        name:
+                          type: object
+                          properties:
+                            first_name:
+                              type: string
+                              description: Legal first name
+      responses:
+        "201":
+          description: The created Account
   /v1/transfers:
     get:
       operationId: listLegacyTransfers

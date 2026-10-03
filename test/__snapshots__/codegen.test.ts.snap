@@ -109,6 +109,150 @@ export const transfers: ResourceDefinition = {
         }
       ],
       "acceptsBody": true
+    },
+    {
+      "verb": "confirm",
+      "method": "POST",
+      "path": "/v2/transfers/{id}/confirm",
+      "summary": "Confirm a Core Transfer",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Transfer id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    }
+  ]
+};
+
+// payment-methods.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const paymentMethods: ResourceDefinition = {
+  "command": "payment-methods",
+  "description": "PaymentMethods",
+  "columns": [
+    "id",
+    "type",
+    "status",
+    "ach.last_four"
+  ],
+  "operations": [
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v1/payment_methods",
+      "summary": "Create a PaymentMethod",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "type",
+          "location": "body",
+          "path": [
+            "type"
+          ],
+          "type": "string",
+          "description": "Kind of payment method",
+          "choices": [
+            "card",
+            "ach"
+          ]
+        },
+        {
+          "flag": "account",
+          "location": "body",
+          "path": [
+            "account"
+          ],
+          "type": "string",
+          "description": "Account id to attach the payment method to"
+        },
+        {
+          "flag": "account_number",
+          "location": "body",
+          "path": [
+            "account_number"
+          ],
+          "type": "string",
+          "description": "Bank account number (ach)"
+        },
+        {
+          "flag": "routing_number",
+          "location": "body",
+          "path": [
+            "routing_number"
+          ],
+          "type": "string",
+          "description": "Nine-digit ABA routing number (ach)"
+        }
+      ],
+      "acceptsBody": true
+    },
+    {
+      "verb": "block",
+      "method": "POST",
+      "path": "/v1/payment_methods/{id}/block",
+      "summary": "Block a PaymentMethod",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "PaymentMethod id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    }
+  ]
+};
+
+// accounts.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const accounts: ResourceDefinition = {
+  "command": "accounts",
+  "description": "Accounts",
+  "columns": [
+    "id",
+    "type",
+    "status"
+  ],
+  "operations": [
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v1/accounts",
+      "summary": "Create an Account",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "type",
+          "location": "body",
+          "path": [
+            "type"
+          ],
+          "type": "string",
+          "description": "Kind of party the Account represents",
+          "choices": [
+            "individual",
+            "business"
+          ]
+        },
+        {
+          "flag": "profile.individual.name.first_name",
+          "location": "body",
+          "path": [
+            "profile",
+            "individual",
+            "name",
+            "first_name"
+          ],
+          "type": "string",
+          "description": "Legal first name"
+        }
+      ],
+      "acceptsBody": true
     }
   ]
 };
@@ -152,9 +296,11 @@ export const capabilities: ResourceDefinition = {
 // index.ts
 import type { DeprecatedResource, ResourceDefinition } from "../../resources/definition.js";
 import { transfers } from "./transfers.js";
+import { paymentMethods } from "./payment-methods.js";
+import { accounts } from "./accounts.js";
 import { capabilities } from "./capabilities.js";
 
-export const resources: ResourceDefinition[] = [transfers, capabilities];
+export const resources: ResourceDefinition[] = [transfers, paymentMethods, accounts, capabilities];
 
 export const deprecatedResources: DeprecatedResource[] = [
   {
