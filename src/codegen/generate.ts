@@ -66,6 +66,13 @@ function withChoices<T extends { choices?: string[] }>(definition: T, schema: Js
   return { ...definition, choices: schema.enum.map(String) };
 }
 
+function withDefault(flag: FlagDefinition, schema: JsonObject): FlagDefinition {
+  const value = schema.default;
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean")
+    return flag;
+  return { ...flag, default: value };
+}
+
 function parseOperationRef(ref: string, where: string): { method: string; path: string } {
   const match = /^([A-Z]+)\s+(\/\S*)$/.exec(ref.trim());
   if (match === null || !HTTP_METHODS.includes(match[1]!.toLowerCase())) {
@@ -137,7 +144,7 @@ function bodyFlags(spec: JsonObject, schema: JsonObject, prefix: string[]): Flag
       type,
       description: describe(property.description),
     };
-    return [withChoices(flag, property)];
+    return [withDefault(withChoices(flag, property), property)];
   });
 }
 
@@ -180,6 +187,7 @@ interface AllowListOperation {
   ref: string;
   argumentName?: string;
   columns?: string[];
+  rows?: string;
 }
 
 function parseAllowListOperation(raw: unknown, where: string): AllowListOperation {
@@ -193,6 +201,7 @@ function parseAllowListOperation(raw: unknown, where: string): AllowListOperatio
     ...(entry.columns === undefined
       ? {}
       : { columns: asStringList(entry.columns, `${where}.columns`) }),
+    ...(entry.rows === undefined ? {} : { rows: asString(entry.rows, `${where}.rows`) }),
   };
 }
 
@@ -203,7 +212,10 @@ function buildOperation(
   raw: unknown
 ): OperationDefinition {
   const where = `${resource} ${verb}`;
-  const { ref, argumentName, columns } = parseAllowListOperation(raw, `allow-list ${where}`);
+  const { ref, argumentName, columns, rows } = parseAllowListOperation(
+    raw,
+    `allow-list ${where}`
+  );
   const { method, path } = parseOperationRef(ref, where);
   const paths = asObject(spec.paths, "OpenAPI paths");
   const pathItem = paths[path];
@@ -231,6 +243,7 @@ function buildOperation(
     flags,
     acceptsBody: body !== null,
     ...(columns === undefined ? {} : { columns }),
+    ...(rows === undefined ? {} : { rows }),
   };
 }
 

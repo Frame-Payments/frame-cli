@@ -109,6 +109,46 @@ export const paymentMethods: ResourceDefinition = {
           "description": "Card security code (card)"
         },
         {
+          "flag": "billing.line_1",
+          "location": "body",
+          "path": [
+            "billing",
+            "line_1"
+          ],
+          "type": "string",
+          "description": "Billing street address"
+        },
+        {
+          "flag": "billing.line_2",
+          "location": "body",
+          "path": [
+            "billing",
+            "line_2"
+          ],
+          "type": "string",
+          "description": "Billing street address, second line"
+        },
+        {
+          "flag": "billing.city",
+          "location": "body",
+          "path": [
+            "billing",
+            "city"
+          ],
+          "type": "string",
+          "description": "Billing city"
+        },
+        {
+          "flag": "billing.state",
+          "location": "body",
+          "path": [
+            "billing",
+            "state"
+          ],
+          "type": "string",
+          "description": "Billing state or province"
+        },
+        {
           "flag": "billing.postal_code",
           "location": "body",
           "path": [
@@ -117,6 +157,16 @@ export const paymentMethods: ResourceDefinition = {
           ],
           "type": "string",
           "description": "Billing postal code"
+        },
+        {
+          "flag": "billing.country",
+          "location": "body",
+          "path": [
+            "billing",
+            "country"
+          ],
+          "type": "string",
+          "description": "Billing country code"
         }
       ],
       "acceptsBody": true
@@ -165,13 +215,13 @@ export const paymentMethods: ResourceDefinition = {
           ]
         },
         {
-          "flag": "limit",
+          "flag": "per_page",
           "location": "query",
           "path": [
-            "limit"
+            "per_page"
           ],
           "type": "integer",
-          "description": "Maximum number of payment methods to return (1-100)"
+          "description": "Number of payment methods per page (1-100, default 10)"
         },
         {
           "flag": "page",

@@ -260,12 +260,30 @@ describe("non-JSON responses", () => {
     expect(caught?.message).toContain("https://api.frame.dev/me");
   });
 
-  it("includes a snippet of the response body in the ApiError message", async () => {
+  it("names an HTML error page instead of quoting it", async () => {
     fetchMock.mockResolvedValueOnce(
       makeNonJsonResponse(
         "<!DOCTYPE html><html><body>Routing Error: action_controller</body></html>",
         404,
       ),
+    );
+    const client = createApiClient({
+      apiKey: "sk_test_xyz",
+      baseUrl: "https://api.frame.dev",
+    });
+    let caught: ApiError | undefined;
+    try {
+      await client.get("/me");
+    } catch (e) {
+      caught = e as ApiError;
+    }
+    expect(caught?.message).toContain("an HTML page");
+    expect(caught?.message).not.toContain("Routing Error");
+  });
+
+  it("includes a snippet of a plain-text response body in the ApiError message", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeNonJsonResponse("Routing Error: action_controller", 404, "text/plain"),
     );
     const client = createApiClient({
       apiKey: "sk_test_xyz",

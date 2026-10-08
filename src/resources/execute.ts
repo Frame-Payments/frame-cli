@@ -135,6 +135,25 @@ async function settle(
   );
 }
 
+function deletionNotice(body: unknown, fallbackId: string | undefined): string | undefined {
+  if (!isObject(body) || body.deleted !== true) return undefined;
+  const object = typeof body.object === "string" ? body.object : "resource";
+  const id = typeof body.id === "string" ? body.id : fallbackId;
+  return id === undefined ? `Deleted ${object}\n` : `Deleted ${object} ${id}\n`;
+}
+
+function render(
+  resource: ResourceDefinition,
+  operation: OperationDefinition,
+  positionals: string[],
+  response: ApiResponse
+): string {
+  return (
+    deletionNotice(response.body, positionals.at(-1)) ??
+    renderTable(operation.columns ?? resource.columns, rowsOf(response.body, operation.rows))
+  );
+}
+
 export async function executeOperation(
   resource: ResourceDefinition,
   operation: OperationDefinition,
@@ -167,9 +186,7 @@ export async function executeOperation(
       if (replay !== null) process.stderr.write(`Idempotent-Replay: ${replay}\n`);
       const settled = await settle(client, resource, operation, response, options);
       process.stdout.write(
-        options.json === true
-          ? settled.text
-          : renderTable(operation.columns ?? resource.columns, rowsOf(settled.body))
+        options.json === true ? settled.text : render(resource, operation, positionals, settled)
       );
     }
   );

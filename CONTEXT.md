@@ -14,7 +14,7 @@ The authoritative domain glossary lives in `frame/CONTEXT.md` (the Rails repo). 
 
 **PaymentMethod**: a card or bank account (ACH) that a Transfer pulls funds from or pays them out to, usually attached to an Account. Joins the ADR-0006 list because a Transfer cannot be created without one. `frame payment-methods create | list | retrieve | block | unblock | attach | detach`.
 
-**Refund**: the reversal of a completed inbound Transfer. `frame refunds create | list | retrieve`.
+**Refund**: the reversal of a completed inbound Transfer, made with `frame transfers refund <id>` and read back on the Transfer's `payment.amount_refunded`. The API's `/v1/refunds` endpoints belong to the legacy charge-intent surface and are not exposed by the CLI.
 
 **Webhook**: a merchant-registered endpoint that receives events. Webhook endpoints on the API (`/v1/webhook_endpoints`); `frame webhooks create | list | retrieve | update | delete | rotate-secret`.
 

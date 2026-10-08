@@ -5,9 +5,9 @@ export const invoices: ResourceDefinition = {
   "description": "Invoices — bills sent to an Account, with their line items",
   "columns": [
     "id",
-    "number",
+    "invoice_number",
     "status",
-    "account_id",
+    "account.id",
     "total",
     "currency",
     "due_date"
@@ -130,13 +130,13 @@ export const invoices: ResourceDefinition = {
           ]
         },
         {
-          "flag": "limit",
+          "flag": "per_page",
           "location": "query",
           "path": [
-            "limit"
+            "per_page"
           ],
           "type": "integer",
-          "description": "Maximum number of invoices to return (1-100)"
+          "description": "Number of invoices per page (1-100, default 10)"
         },
         {
           "flag": "page",
@@ -243,11 +243,10 @@ export const invoices: ResourceDefinition = {
       "acceptsBody": false,
       "columns": [
         "id",
-        "product_id",
         "description",
         "quantity",
-        "unit_amount",
-        "amount"
+        "unit_amount_cents",
+        "unit_amount_currency"
       ]
     },
     {
@@ -279,34 +278,15 @@ export const invoices: ResourceDefinition = {
           ],
           "type": "integer",
           "description": "Number of units"
-        },
-        {
-          "flag": "description",
-          "location": "body",
-          "path": [
-            "description"
-          ],
-          "type": "string",
-          "description": "Line description; defaults to the product name"
-        },
-        {
-          "flag": "unit_amount",
-          "location": "body",
-          "path": [
-            "unit_amount"
-          ],
-          "type": "integer",
-          "description": "Price per unit in the smallest currency unit; defaults to the product price"
         }
       ],
       "acceptsBody": true,
       "columns": [
         "id",
-        "product_id",
         "description",
         "quantity",
-        "unit_amount",
-        "amount"
+        "unit_amount_cents",
+        "unit_amount_currency"
       ]
     },
     {
@@ -328,11 +308,10 @@ export const invoices: ResourceDefinition = {
       "acceptsBody": false,
       "columns": [
         "id",
-        "product_id",
         "description",
         "quantity",
-        "unit_amount",
-        "amount"
+        "unit_amount_cents",
+        "unit_amount_currency"
       ]
     },
     {
@@ -359,34 +338,15 @@ export const invoices: ResourceDefinition = {
           ],
           "type": "integer",
           "description": "Number of units"
-        },
-        {
-          "flag": "description",
-          "location": "body",
-          "path": [
-            "description"
-          ],
-          "type": "string",
-          "description": "Line description"
-        },
-        {
-          "flag": "unit_amount",
-          "location": "body",
-          "path": [
-            "unit_amount"
-          ],
-          "type": "integer",
-          "description": "Price per unit in the smallest currency unit"
         }
       ],
       "acceptsBody": true,
       "columns": [
         "id",
-        "product_id",
         "description",
         "quantity",
-        "unit_amount",
-        "amount"
+        "unit_amount_cents",
+        "unit_amount_currency"
       ]
     },
     {
@@ -408,11 +368,10 @@ export const invoices: ResourceDefinition = {
       "acceptsBody": false,
       "columns": [
         "id",
-        "product_id",
         "description",
         "quantity",
-        "unit_amount",
-        "amount"
+        "unit_amount_cents",
+        "unit_amount_currency"
       ]
     }
   ]

@@ -7,6 +7,7 @@ export interface FlagDefinition {
   type: FlagType;
   description: string;
   choices?: string[];
+  default?: string | number | boolean;
 }
 
 export interface PathParamDefinition {
@@ -30,6 +31,7 @@ export interface OperationDefinition {
   flags: FlagDefinition[];
   acceptsBody: boolean;
   columns?: string[];
+  rows?: string;
 }
 
 export interface WaitDefinition {

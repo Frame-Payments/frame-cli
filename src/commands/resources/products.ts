@@ -128,13 +128,13 @@ export const products: ResourceDefinition = {
           "description": "Only return active (true) or archived (false) products"
         },
         {
-          "flag": "limit",
+          "flag": "per_page",
           "location": "query",
           "path": [
-            "limit"
+            "per_page"
           ],
           "type": "integer",
-          "description": "Maximum number of products to return (1-100)"
+          "description": "Number of products per page (1-100, default 10)"
         },
         {
           "flag": "page",
@@ -186,15 +186,6 @@ export const products: ResourceDefinition = {
           ],
           "type": "integer",
           "description": "Price in the smallest currency unit"
-        },
-        {
-          "flag": "active",
-          "location": "body",
-          "path": [
-            "active"
-          ],
-          "type": "boolean",
-          "description": "Archive (false) or restore (true) the product"
         },
         {
           "flag": "shippable",
@@ -257,7 +248,8 @@ export const products: ResourceDefinition = {
           "description": "Only return active (true) or archived (false) products"
         }
       ],
-      "acceptsBody": false
+      "acceptsBody": false,
+      "rows": "products"
     }
   ]
 };

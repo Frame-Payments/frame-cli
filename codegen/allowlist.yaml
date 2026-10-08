@@ -4,11 +4,11 @@ resources:
     columns:
       - id
       - status
-      - payment_status
-      - failure_code
+      - payment.status
+      - payment.failure_code
       - amount.value
       - amount.currency
-      - amount_refunded.value
+      - payment.amount_refunded.value
     wait:
       terminal_statuses: [completed, failed, reversed, canceled]
       operations: [create, confirm]
@@ -58,31 +58,18 @@ resources:
       request:
         operation: POST /v1/accounts/{account_id}/capabilities
         argument: capabilities
-  refunds:
-    tag: Refunds
-    columns:
-      - id
-      - status
-      - amount
-      - currency
-      - transfer_id
-      - reason
-    operations:
-      create: POST /v1/refunds
-      retrieve: GET /v1/refunds/{id}
-      list: GET /v1/refunds
   webhooks:
     tag: WebhookEndpoints
     columns:
       - id
       - url
       - status
-      - events
+      - event_codes
       - secret
     operations:
       create:
         operation: POST /v1/webhook_endpoints
-        argument: events
+        argument: event_codes
       retrieve: GET /v1/webhook_endpoints/{id}
       list: GET /v1/webhook_endpoints
       update: PATCH /v1/webhook_endpoints/{id}
@@ -103,14 +90,16 @@ resources:
       list: GET /v1/products
       update: PATCH /v1/products/{id}
       delete: DELETE /v1/products/{id}
-      search: GET /v1/products/search
+      search:
+        operation: GET /v1/products/search
+        rows: products
   invoices:
     tag: Invoices
     columns:
       - id
-      - number
+      - invoice_number
       - status
-      - account_id
+      - account.id
       - total
       - currency
       - due_date
@@ -124,11 +113,10 @@ resources:
         operation: GET /v1/invoices/{invoice_id}/line_items
         columns: &line-item-columns
           - id
-          - product_id
           - description
           - quantity
-          - unit_amount
-          - amount
+          - unit_amount_cents
+          - unit_amount_currency
       create-line-item:
         operation: POST /v1/invoices/{invoice_id}/line_items
         columns: *line-item-columns

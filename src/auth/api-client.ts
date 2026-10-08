@@ -85,6 +85,7 @@ interface ApiErrorExtras {
   errorType?: string;
   code?: string;
   details?: ApiErrorDetails;
+  retryAfterSeconds?: number;
 }
 
 export class ApiError extends Error {
@@ -93,6 +94,8 @@ export class ApiError extends Error {
   public readonly code: string | undefined;
   /** Field-level validation breakdown when present (422s). */
   public readonly details: ApiErrorDetails | undefined;
+  /** Seconds to wait before retrying, from a 429's Retry-After header. */
+  public readonly retryAfterSeconds: number | undefined;
 
   constructor(
     public readonly status: number,
@@ -104,6 +107,7 @@ export class ApiError extends Error {
     this.errorType = extras.errorType;
     this.code = extras.code;
     this.details = extras.details;
+    this.retryAfterSeconds = extras.retryAfterSeconds;
   }
 }
 
@@ -155,12 +159,49 @@ function truncateForError(text: string, max = 200): string {
   return `${collapsed.slice(0, max)}… (${collapsed.length} chars total)`;
 }
 
+/**
+ * Frame's error envelope: `{ status, error: "<message>", code, error_details }`,
+ * where `error_details` is a message string, a `{ message, data }` hash from a
+ * service failure, or absent. `data.errors` carries field-level details.
+ */
+function nonJsonMessage(status: number, url: string, rawText: string): string {
+  const html = /^\s*</.test(rawText);
+  const body = html ? "an HTML page" : `Body: ${truncateForError(rawText)}`;
+  return `HTTP ${status} from ${url}: response was not valid JSON. ${body}`;
+}
+
 function parseCodedError(body: unknown): ({ message: string } & ApiErrorExtras) | null {
   if (!isObject(body) || typeof body.code !== "string") return null;
   const details = body.error_details;
   const message =
-    isObject(details) && typeof details.message === "string" ? details.message : body.code;
-  return { message, code: body.code };
+    firstString(
+      typeof details === "string" ? details : undefined,
+      isObject(details) ? details.message : undefined,
+      body.error
+    ) ?? body.code;
+  const data = isObject(details) && isObject(details.data) ? details.data : undefined;
+  const out: { message: string } & ApiErrorExtras = { message, code: body.code };
+  if (data !== undefined && isObject(data.errors)) out.details = data.errors;
+  return out;
+}
+
+/**
+ * Bodies without a `code`: a service failure rendered directly as
+ * `{ type, message, data }`, or `{ status, error: "<message>" }`.
+ */
+function parseMessageOnlyError(body: unknown): ({ message: string } & ApiErrorExtras) | null {
+  if (!isObject(body)) return null;
+  const message = firstString(body.message, body.error);
+  if (message === undefined) return null;
+  const out: { message: string } & ApiErrorExtras = { message };
+  if (typeof body.type === "string") out.errorType = body.type;
+  if (isObject(body.data) && isObject(body.data.errors)) out.details = body.data.errors;
+  return out;
+}
+
+function firstString(...candidates: unknown[]): string | undefined {
+  const found = candidates.find((candidate) => typeof candidate === "string");
+  return typeof found === "string" ? found : undefined;
 }
 
 /**
@@ -177,7 +218,7 @@ function parseServerError(body: unknown): ({ message: string } & ApiErrorExtras)
     body.error === null ||
     typeof body.error !== "object"
   ) {
-    return null;
+    return parseMessageOnlyError(body);
   }
   const err = body.error as Record<string, unknown>;
   if (typeof err.message !== "string") return null;
@@ -223,18 +264,15 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     try {
       responseBody = rawText.length === 0 ? undefined : JSON.parse(rawText);
     } catch {
-      throw new ApiError(
-        resp.status,
-        `HTTP ${resp.status} from ${url}: response was not valid JSON. Body: ${truncateForError(rawText)}`,
-      );
+      throw new ApiError(resp.status, nonJsonMessage(resp.status, url, rawText));
     }
 
     if (!resp.ok) {
-      const parsed = parseServerError(responseBody);
-      if (parsed === null) {
-        throw new ApiError(resp.status, `HTTP ${resp.status}`);
-      }
+      const parsed = parseServerError(responseBody) ?? { message: `HTTP ${resp.status}` };
       const { message, ...extras } = parsed;
+      const retryAfterSeconds = Number(resp.headers.get("Retry-After"));
+      if (resp.status === 429 && Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0)
+        extras.retryAfterSeconds = retryAfterSeconds;
       throw new ApiError(resp.status, message, extras);
     }
 

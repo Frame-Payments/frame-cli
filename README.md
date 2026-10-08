@@ -50,16 +50,15 @@ Your local server receives webhook payloads within seconds of the events being p
 | [`frame whoami`](https://github.com/Frame-Payments/frame-cli#readme) | Show the currently authenticated merchant |
 | [`frame listen`](https://github.com/Frame-Payments/frame-cli#readme) | Forward sandbox webhook events to a local URL |
 | [`frame events resend <evt_id>`](https://github.com/Frame-Payments/frame-cli#readme) | Re-deliver a previously emitted event verbatim |
-| [`frame transfers list`](https://github.com/Frame-Payments/frame-cli#readme) | List Core Transfers (`--limit`, `--type`, `--json`) |
+| [`frame transfers list`](https://github.com/Frame-Payments/frame-cli#readme) | List Core Transfers (`--per_page`, `--page`, `--json`) |
 | [`frame transfers retrieve <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Retrieve a Core Transfer |
-| [`frame transfers create`](https://github.com/Frame-Payments/frame-cli#readme) | Create a Core Transfer (`--amount.value`, `--source.payment_method_id`, `--confirm`, `--wait`) |
-| [`frame transfers confirm\|refund\|capture\|void <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Run a member action on a Core Transfer (`confirm --wait`) |
+| [`frame transfers create`](https://github.com/Frame-Payments/frame-cli#readme) | Create a Core Transfer (`--amount.value`, `--source.payment_method_id`, `--authorization_mode`, `--confirm`, `--wait`) |
+| [`frame transfers confirm\|refund\|capture\|void <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Run a member action on a Core Transfer (`confirm --wait`, `refund --amount.value`) |
 | [`frame payment-methods create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage PaymentMethods (cards and ACH bank accounts) |
 | [`frame payment-methods block\|unblock\|attach\|detach <id>`](https://github.com/Frame-Payments/frame-cli#readme) | Run a member action on a PaymentMethod |
 | [`frame accounts create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Accounts |
 | [`frame capabilities request <account_id> <capabilities...>`](https://github.com/Frame-Payments/frame-cli#readme) | Request Capabilities for an Account |
-| [`frame refunds create\|list\|retrieve`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Refunds of completed inbound Core Transfers |
-| [`frame webhooks create <events...>`](https://github.com/Frame-Payments/frame-cli#readme) | Register a Webhook endpoint for the given event codes (`--url`) |
+| [`frame webhooks create <event_codes...>`](https://github.com/Frame-Payments/frame-cli#readme) | Register a Webhook endpoint for the given event codes (`--url`) |
 | [`frame webhooks list\|retrieve\|update\|delete\|rotate-secret`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Webhook endpoints; `rotate-secret` returns a new signing secret |
 | [`frame products create\|list\|retrieve\|update\|delete\|search`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Products |
 | [`frame invoices create\|list\|retrieve\|update\|issue`](https://github.com/Frame-Payments/frame-cli#readme) | Manage Invoices |

@@ -6,11 +6,11 @@ export const transfers: ResourceDefinition = {
   "columns": [
     "id",
     "status",
-    "payment_status",
-    "failure_code",
+    "payment.status",
+    "payment.failure_code",
     "amount.value",
     "amount.currency",
-    "amount_refunded.value"
+    "payment.amount_refunded.value"
   ],
   "operations": [
     {
@@ -21,13 +21,13 @@ export const transfers: ResourceDefinition = {
       "pathParams": [],
       "flags": [
         {
-          "flag": "limit",
+          "flag": "per_page",
           "location": "query",
           "path": [
-            "limit"
+            "per_page"
           ],
           "type": "integer",
-          "description": "Maximum number of transfers to return (1-100)"
+          "description": "Number of transfers per page (1-100, default 10)"
         },
         {
           "flag": "page",
@@ -37,37 +37,6 @@ export const transfers: ResourceDefinition = {
           ],
           "type": "integer",
           "description": "Page number to return, starting at 1"
-        },
-        {
-          "flag": "type",
-          "location": "query",
-          "path": [
-            "type"
-          ],
-          "type": "string",
-          "description": "Only return transfers of this type",
-          "choices": [
-            "payment",
-            "payout"
-          ]
-        },
-        {
-          "flag": "status",
-          "location": "query",
-          "path": [
-            "status"
-          ],
-          "type": "string",
-          "description": "Only return transfers with this status"
-        },
-        {
-          "flag": "account",
-          "location": "query",
-          "path": [
-            "account"
-          ],
-          "type": "string",
-          "description": "Only return transfers involving this Account id"
         }
       ],
       "acceptsBody": false
@@ -152,7 +121,21 @@ export const transfers: ResourceDefinition = {
             "confirm"
           ],
           "type": "boolean",
-          "description": "Confirm the transfer immediately instead of leaving it for frame transfers confirm"
+          "description": "Confirm the transfer immediately instead of leaving it for frame transfers confirm",
+          "default": false
+        },
+        {
+          "flag": "authorization_mode",
+          "location": "body",
+          "path": [
+            "authorization_mode"
+          ],
+          "type": "string",
+          "description": "Capture automatically on confirm, or authorize only and capture later with frame transfers capture",
+          "choices": [
+            "automatic",
+            "manual"
+          ]
         }
       ],
       "acceptsBody": true
@@ -192,15 +175,6 @@ export const transfers: ResourceDefinition = {
           ],
           "type": "integer",
           "description": "Amount to refund in the smallest currency unit; defaults to the full amount"
-        },
-        {
-          "flag": "reason",
-          "location": "body",
-          "path": [
-            "reason"
-          ],
-          "type": "string",
-          "description": "Why the transfer is being refunded"
         }
       ],
       "acceptsBody": true

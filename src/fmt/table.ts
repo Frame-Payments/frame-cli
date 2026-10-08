@@ -22,9 +22,11 @@ function label(field: string): string {
   return field.replace(/[._]/g, " ").toUpperCase();
 }
 
-export function rowsOf(body: unknown): unknown[] {
-  if (body !== null && typeof body === "object" && "data" in body && Array.isArray(body.data)) {
-    return body.data;
+export function rowsOf(body: unknown, key = "data"): unknown[] {
+  if (Array.isArray(body)) return body;
+  if (body !== null && typeof body === "object") {
+    const rows = (body as Record<string, unknown>)[key];
+    if (Array.isArray(rows)) return rows;
   }
   return [body];
 }

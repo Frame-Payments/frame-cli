@@ -13,8 +13,6 @@ tags:
     description: Accounts — the parties a merchant transacts with
   - name: Capabilities
     description: Capabilities — permissions an Account requests
-  - name: Refunds
-    description: Refunds — reversals of completed inbound Core Transfers
   - name: WebhookEndpoints
     description: Webhooks — endpoints that receive your events
   - name: Products
@@ -28,9 +26,9 @@ paths:
       summary: List Core Transfers
       tags: [Transfers]
       parameters:
-        - name: limit
+        - name: per_page
           in: query
-          description: Maximum number of transfers to return (1-100)
+          description: Number of transfers per page (1-100, default 10)
           schema:
             type: integer
             minimum: 1
@@ -41,22 +39,6 @@ paths:
           schema:
             type: integer
             minimum: 1
-        - name: type
-          in: query
-          description: Only return transfers of this type
-          schema:
-            type: string
-            enum: [payment, payout]
-        - name: status
-          in: query
-          description: Only return transfers with this status
-          schema:
-            type: string
-        - name: account
-          in: query
-          description: Only return transfers involving this Account id
-          schema:
-            type: string
       responses:
         "200":
           description: A page of Core Transfers
@@ -229,9 +211,9 @@ paths:
           schema:
             type: string
             enum: [card, ach]
-        - name: limit
+        - name: per_page
           in: query
-          description: Maximum number of payment methods to return (1-100)
+          description: Number of payment methods per page (1-100, default 10)
           schema:
             type: integer
         - name: page
@@ -397,9 +379,9 @@ paths:
           schema:
             type: string
             enum: [individual, business]
-        - name: limit
+        - name: per_page
           in: query
-          description: Maximum number of accounts to return (1-100)
+          description: Number of accounts per page (1-100, default 10)
           schema:
             type: integer
         - name: page
@@ -485,85 +467,15 @@ paths:
                 $ref: "#/components/schemas/CapabilityList"
         "422":
           $ref: "#/components/responses/Error"
-  /v1/refunds:
-    get:
-      operationId: listRefunds
-      summary: List Refunds
-      tags: [Refunds]
-      parameters:
-        - name: transfer
-          in: query
-          description: Only return refunds of this Core Transfer id
-          schema:
-            type: string
-        - name: limit
-          in: query
-          description: Maximum number of refunds to return (1-100)
-          schema:
-            type: integer
-        - name: page
-          in: query
-          description: Page number to return, starting at 1
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: A page of Refunds
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RefundList"
-    post:
-      operationId: createRefund
-      summary: Refund a completed inbound Core Transfer
-      tags: [Refunds]
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RefundCreate"
-      responses:
-        "201":
-          description: The created Refund
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Refund"
-        "422":
-          $ref: "#/components/responses/Error"
-  /v1/refunds/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        description: Id of the Refund
-        schema:
-          type: string
-    get:
-      operationId: retrieveRefund
-      summary: Retrieve a Refund
-      tags: [Refunds]
-      responses:
-        "200":
-          description: The Refund
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Refund"
-        "404":
-          $ref: "#/components/responses/Error"
   /v1/webhook_endpoints:
     get:
       operationId: listWebhookEndpoints
       summary: List Webhook endpoints
       tags: [WebhookEndpoints]
       parameters:
-        - name: limit
+        - name: per_page
           in: query
-          description: Maximum number of endpoints to return (1-100)
+          description: Number of endpoints per page (1-100, default 10)
           schema:
             type: integer
         - name: page
@@ -685,9 +597,9 @@ paths:
           description: Only return active (true) or archived (false) products
           schema:
             type: boolean
-        - name: limit
+        - name: per_page
           in: query
-          description: Maximum number of products to return (1-100)
+          description: Number of products per page (1-100, default 10)
           schema:
             type: integer
         - name: page
@@ -815,9 +727,9 @@ paths:
           schema:
             type: string
             enum: [draft, outstanding, due, overdue, paid, written_off, voided]
-        - name: limit
+        - name: per_page
           in: query
-          description: Maximum number of invoices to return (1-100)
+          description: Number of invoices per page (1-100, default 10)
           schema:
             type: integer
         - name: page
@@ -1077,16 +989,24 @@ components:
           enum: [payment, payout]
         status:
           type: string
-        payment_status:
-          type: string
-          nullable: true
-        failure_code:
-          type: string
-          nullable: true
         amount:
           $ref: "#/components/schemas/Amount"
-        amount_refunded:
-          $ref: "#/components/schemas/Amount"
+        payment:
+          type: object
+          description: Present on inbound Transfers
+          properties:
+            status:
+              type: string
+            authorization_mode:
+              type: string
+              enum: [automatic, manual]
+            failure_code:
+              type: string
+              nullable: true
+            amount_captured:
+              $ref: "#/components/schemas/Amount"
+            amount_refunded:
+              $ref: "#/components/schemas/Amount"
         created:
           type: integer
     TransferList:
@@ -1129,7 +1049,12 @@ components:
           description: Free-text description shown to the merchant
         confirm:
           type: boolean
+          default: false
           description: Confirm the transfer immediately instead of leaving it for frame transfers confirm
+        authorization_mode:
+          type: string
+          description: Capture automatically on confirm, or authorize only and capture later with frame transfers capture
+          enum: [automatic, manual]
         metadata:
           type: object
           description: Free-form key-value pairs
@@ -1142,9 +1067,6 @@ components:
             value:
               type: integer
               description: Amount to refund in the smallest currency unit; defaults to the full amount
-        reason:
-          type: string
-          description: Why the transfer is being refunded
     TransferCapture:
       type: object
       properties:
@@ -1220,10 +1142,26 @@ components:
           description: Card security code (card)
         billing:
           type: object
+          description: Billing address; a card needs the full address before a Transfer will confirm
           properties:
+            line_1:
+              type: string
+              description: Billing street address
+            line_2:
+              type: string
+              description: Billing street address, second line
+            city:
+              type: string
+              description: Billing city
+            state:
+              type: string
+              description: Billing state or province
             postal_code:
               type: string
               description: Billing postal code
+            country:
+              type: string
+              description: Billing country code
     PaymentMethodAttach:
       type: object
       required: [account]
@@ -1367,55 +1305,6 @@ components:
           type: string
         deleted:
           type: boolean
-    Refund:
-      type: object
-      properties:
-        id:
-          type: string
-        object:
-          type: string
-        status:
-          type: string
-        amount:
-          type: integer
-        currency:
-          type: string
-        transfer_id:
-          type: string
-        reason:
-          type: string
-          nullable: true
-        failure_code:
-          type: string
-          nullable: true
-        created:
-          type: integer
-    RefundList:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/Refund"
-        meta:
-          type: object
-    RefundCreate:
-      type: object
-      required: [transfer]
-      properties:
-        transfer:
-          type: string
-          description: Id of the completed inbound Core Transfer to refund
-        amount:
-          type: integer
-          description: Amount to refund in the smallest currency unit; defaults to the full amount
-        reason:
-          type: string
-          description: Why the transfer is being refunded
-          enum: [duplicate, fraudulent, requested_by_customer, expired_uncaptured_charge]
-        metadata:
-          type: object
-          description: Free-form key-value pairs
     WebhookEndpoint:
       type: object
       properties:
@@ -1427,8 +1316,7 @@ components:
           type: string
         status:
           type: string
-          enum: [enabled, disabled]
-        events:
+        event_codes:
           type: array
           items:
             type: string
@@ -1449,12 +1337,12 @@ components:
           type: object
     WebhookEndpointCreate:
       type: object
-      required: [url, events]
+      required: [url, event_codes]
       properties:
         url:
           type: string
           description: HTTPS URL the events are delivered to
-        events:
+        event_codes:
           type: array
           description: Event codes to deliver to the endpoint
           items:
@@ -1468,7 +1356,7 @@ components:
         url:
           type: string
           description: HTTPS URL the events are delivered to
-        events:
+        event_codes:
           type: array
           description: Event codes to deliver to the endpoint
           items:
@@ -1476,10 +1364,6 @@ components:
         description:
           type: string
           description: Free-text description of the endpoint
-        status:
-          type: string
-          description: Pause (disabled) or resume (enabled) deliveries
-          enum: [enabled, disabled]
     Product:
       type: object
       properties:
@@ -1515,7 +1399,7 @@ components:
           type: object
     ProductCreate:
       type: object
-      required: [name, default_price, purchase_type]
+      required: [name, description, default_price, purchase_type]
       properties:
         name:
           type: string
@@ -1555,9 +1439,6 @@ components:
         default_price:
           type: integer
           description: Price in the smallest currency unit
-        active:
-          type: boolean
-          description: Archive (false) or restore (true) the product
         shippable:
           type: boolean
           description: Whether the product is physically shipped
@@ -1574,14 +1455,17 @@ components:
           type: string
         object:
           type: string
-        number:
+        invoice_number:
           type: string
           nullable: true
         status:
           type: string
           enum: [draft, outstanding, due, overdue, paid, written_off, voided]
-        account_id:
-          type: string
+        account:
+          type: object
+          properties:
+            id:
+              type: string
         total:
           type: integer
         currency:
@@ -1655,17 +1539,14 @@ components:
           type: string
         object:
           type: string
-        product_id:
-          type: string
-          nullable: true
         description:
           type: string
         quantity:
           type: integer
-        unit_amount:
+        unit_amount_cents:
           type: integer
-        amount:
-          type: integer
+        unit_amount_currency:
+          type: string
     InvoiceLineItemList:
       type: object
       properties:
@@ -1685,24 +1566,12 @@ components:
         quantity:
           type: integer
           description: Number of units
-        description:
-          type: string
-          description: Line description; defaults to the product name
-        unit_amount:
-          type: integer
-          description: Price per unit in the smallest currency unit; defaults to the product price
     InvoiceLineItemUpdate:
       type: object
       properties:
         quantity:
           type: integer
           description: Number of units
-        description:
-          type: string
-          description: Line description
-        unit_amount:
-          type: integer
-          description: Price per unit in the smallest currency unit
     Error:
       type: object
       properties:

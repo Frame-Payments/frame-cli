@@ -42,6 +42,31 @@ describe("generateResourceCommands", () => {
     );
   });
 
+  it("passes a request field's default through to the flag", () => {
+    const spec = structuredClone(fixtureSpec) as {
+      components: {
+        schemas: { TransferCreate: { properties: { confirm: Record<string, unknown> } } };
+      };
+    };
+    spec.components.schemas.TransferCreate.properties.confirm.default = false;
+    expect(generatedSource(spec, fixtureAllowList)).toMatch(
+      /"flag": "confirm",[\s\S]*?"default": false/
+    );
+  });
+
+  it("names the response key holding the rows from the allow-list", () => {
+    const allowList = {
+      resources: {
+        products: {
+          tag: "Products",
+          columns: ["id"],
+          operations: { search: { operation: "GET /v1/products/search", rows: "products" } },
+        },
+      },
+    };
+    expect(generatedSource(fixtureSpec, allowList)).toContain('"rows": "products"');
+  });
+
   it("fails when a body argument is not a field of the request body", () => {
     const allowList = {
       resources: {

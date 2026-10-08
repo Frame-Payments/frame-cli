@@ -53,6 +53,7 @@ function optionFor(flag: FlagDefinition): Option {
   const spec = flag.type === "boolean" ? `--${flag.flag}` : `--${flag.flag} <${flag.type}>`;
   const option = new Option(spec, flag.description);
   if (flag.choices !== undefined) option.choices(flag.choices);
+  if (flag.default !== undefined) option.default(flag.default);
   if (flag.type === "integer" || flag.type === "number")
     option.argParser(parseNumber(flag.type === "integer"));
   return option;

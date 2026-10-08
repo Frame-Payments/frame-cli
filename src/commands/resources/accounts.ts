@@ -236,13 +236,13 @@ export const accounts: ResourceDefinition = {
           ]
         },
         {
-          "flag": "limit",
+          "flag": "per_page",
           "location": "query",
           "path": [
-            "limit"
+            "per_page"
           ],
           "type": "integer",
-          "description": "Maximum number of accounts to return (1-100)"
+          "description": "Number of accounts per page (1-100, default 10)"
         },
         {
           "flag": "page",

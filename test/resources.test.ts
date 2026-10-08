@@ -117,22 +117,24 @@ const transfer = {
   id: "tr_123",
   object: "transfer",
   status: "succeeded",
-  payment_status: "captured",
-  failure_code: null,
   amount: { value: 2500, currency: "usd" },
-  amount_refunded: { value: 0, currency: "usd" },
+  payment: {
+    status: "captured",
+    failure_code: null,
+    amount_refunded: { value: 0, currency: "usd" },
+  },
 };
 
 describe("frame transfers list", () => {
   it("sends the query flags to GET /v2/transfers on the API root", async () => {
     nextResponse = { status: 200, body: JSON.stringify({ data: [transfer] }) };
 
-    const code = await frame(["transfers", "list", "--limit", "10", "--type", "payment"]);
+    const code = await frame(["transfers", "list", "--per_page", "10", "--page", "2"]);
 
     expect(code).toBe(0);
     expect(requests).toHaveLength(1);
     expect(requests[0]!.method).toBe("GET");
-    expect(requests[0]!.url).toBe("/v2/transfers?limit=10&type=payment");
+    expect(requests[0]!.url).toBe("/v2/transfers?per_page=10&page=2");
     expect(requests[0]!.authorization).toBe("Bearer sk_sandbox_xyz");
   });
 
@@ -153,16 +155,18 @@ describe("frame transfers list", () => {
     await frame(["transfers", "list"]);
 
     const [header, row] = stdout.trimEnd().split("\n");
-    expect(header).toMatch(/^ID\s+STATUS\s+PAYMENT STATUS\s+FAILURE CODE\s+AMOUNT VALUE/);
+    expect(header).toMatch(
+      /^ID\s+STATUS\s+PAYMENT STATUS\s+PAYMENT FAILURE CODE\s+AMOUNT VALUE\s+AMOUNT CURRENCY\s+PAYMENT AMOUNT REFUNDED VALUE$/
+    );
     expect(row).toMatch(/^tr_123\s+succeeded\s+captured\s+-\s+2500\s+usd\s+0$/);
   });
 
   it("exits 2 on a usage error without calling the API", async () => {
-    const code = await frame(["transfers", "list", "--type", "bogus"]);
+    const code = await frame(["payment-methods", "list", "--type", "bogus"]);
 
     expect(code).toBe(2);
     expect(requests).toHaveLength(0);
-    expect(stderr).toMatch(/payment, payout/);
+    expect(stderr).toMatch(/card, ach/);
   });
 
   it("exits 2 when an integer flag is not a number", async () => {
@@ -234,9 +238,9 @@ describe("generated --help", () => {
     const code = await frame(["transfers", "list", "--help"]);
 
     expect(code).toBe(0);
-    expect(stdout).toContain("--limit <integer>");
-    expect(stdout).toContain("Maximum number of transfers to return");
-    expect(stdout).toContain("--type <string>");
+    expect(stdout).toContain("--per_page <integer>");
+    expect(stdout).toContain("Number of transfers per page");
+    expect(stdout).toContain("--page <integer>");
     expect(stdout).toContain("--json");
     expect(stdout).toContain("--base-url <url>");
   });
@@ -449,6 +453,33 @@ describe("mutating commands", () => {
     });
   });
 
+  it("sends confirm as false when the flag is absent, with the authorization mode", async () => {
+    await frame([
+      "transfers",
+      "create",
+      "--amount.value",
+      "2500",
+      "--amount.currency",
+      "usd",
+      "--source.payment_method_id",
+      "pm_card",
+      "--authorization_mode",
+      "manual",
+    ]);
+
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      amount: { value: 2500, currency: "usd" },
+      source: { payment_method_id: "pm_card" },
+      confirm: false,
+      authorization_mode: "manual",
+    });
+  });
+
+  it("exits 2 on an unknown authorization mode without calling the API", async () => {
+    expect(await frame(["transfers", "create", "--authorization_mode", "later"])).toBe(2);
+    expect(requests).toHaveLength(0);
+  });
+
   it.each([
     [["transfers", "confirm", "tr_1"], "/v2/transfers/tr_1/confirm"],
     [["transfers", "refund", "tr_1"], "/v2/transfers/tr_1/refund"],
@@ -534,6 +565,23 @@ describe("mutating commands", () => {
     expect(stdout).toMatch(/bank_account_receive\s+pending/);
   });
 
+  it("renders a bare array response as rows", async () => {
+    nextResponse = {
+      status: 201,
+      body: JSON.stringify([
+        { name: "bank_account_send", status: "pending" },
+        { name: "kyc", status: "pending" },
+      ]),
+    };
+
+    await frame(["capabilities", "request", "acct_1", "bank_account_send", "kyc"]);
+
+    const lines = stdout.trimEnd().split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toMatch(/^bank_account_send\s+pending/);
+    expect(lines[2]).toMatch(/^kyc\s+pending/);
+  });
+
   it("exits 2 on an unknown capability without calling the API", async () => {
     expect(await frame(["capabilities", "request", "acct_1", "teleport"])).toBe(2);
     expect(requests).toHaveLength(0);
@@ -585,12 +633,15 @@ describe("--wait", () => {
   });
 
   it("returns a failed transfer with its failure code", async () => {
-    queuedResponses = [transferIn("pending"), transferIn("failed", { failure_code: "R01" })];
+    queuedResponses = [
+      transferIn("pending"),
+      transferIn("failed", { payment: { status: "failed", failure_code: "R01" } }),
+    ];
 
     const code = await frame(["transfers", "create", "--wait", "--interval", "10ms"]);
 
     expect(code).toBe(0);
-    expect(stdout).toMatch(/tr_1\s+failed\s+-\s+R01/);
+    expect(stdout).toMatch(/tr_1\s+failed\s+failed\s+R01/);
   });
 
   it("reports polling progress on stderr only", async () => {
@@ -704,7 +755,6 @@ describe("refunds, webhooks, products and invoices", () => {
   });
 
   it.each([
-    [["refunds", "create", "--transfer", "tr_1"], "/v1/refunds"],
     [
       ["webhooks", "create", "transfer.completed", "--url", "https://x.test"],
       "/v1/webhook_endpoints",
@@ -726,11 +776,13 @@ describe("refunds, webhooks, products and invoices", () => {
   });
 
   it.each([
-    [["refunds", "list", "--transfer", "tr_1"], "GET", "/v1/refunds?transfer=tr_1"],
-    [["refunds", "retrieve", "re_1"], "GET", "/v1/refunds/re_1"],
-    [["webhooks", "list"], "GET", "/v1/webhook_endpoints"],
+    [["webhooks", "list", "--per_page", "5"], "GET", "/v1/webhook_endpoints?per_page=5"],
     [["webhooks", "retrieve", "we_1"], "GET", "/v1/webhook_endpoints/we_1"],
-    [["webhooks", "update", "we_1", "--status", "disabled"], "PATCH", "/v1/webhook_endpoints/we_1"],
+    [
+      ["webhooks", "update", "we_1", "--url", "https://y.test"],
+      "PATCH",
+      "/v1/webhook_endpoints/we_1",
+    ],
     [["webhooks", "delete", "we_1"], "DELETE", "/v1/webhook_endpoints/we_1"],
     [["products", "list", "--active"], "GET", "/v1/products?active=true"],
     [["products", "retrieve", "prod_1"], "GET", "/v1/products/prod_1"],
@@ -763,23 +815,9 @@ describe("refunds, webhooks, products and invoices", () => {
     expect(requests[0]!.url).toBe(url);
   });
 
-  it("creates a refund of part of a transfer", async () => {
-    await frame([
-      "refunds",
-      "create",
-      "--transfer",
-      "tr_1",
-      "--amount",
-      "500",
-      "--reason",
-      "duplicate",
-    ]);
-
-    expect(JSON.parse(requests[0]!.body)).toEqual({
-      transfer: "tr_1",
-      amount: 500,
-      reason: "duplicate",
-    });
+  it("has no refunds resource; Core Transfers are refunded with frame transfers refund", async () => {
+    expect(await frame(["refunds", "list"])).not.toBe(0);
+    expect(requests).toHaveLength(0);
   });
 
   it("creates a webhook endpoint for the event codes named as arguments", async () => {
@@ -794,7 +832,7 @@ describe("refunds, webhooks, products and invoices", () => {
 
     expect(JSON.parse(requests[0]!.body)).toEqual({
       url: "https://example.com/hooks",
-      events: ["transfer.completed", "refund.created"],
+      event_codes: ["transfer.completed", "refund.created"],
     });
   });
 
@@ -804,32 +842,38 @@ describe("refunds, webhooks, products and invoices", () => {
       body: JSON.stringify({
         id: "we_1",
         url: "https://x.test",
-        status: "enabled",
+        status: "active",
+        event_codes: ["transfer.completed"],
         secret: "whsec_new",
       }),
     };
 
     await frame(["webhooks", "rotate-secret", "we_1"]);
 
-    expect(stdout).toMatch(/^ID\s+URL\s+STATUS\s+EVENTS\s+SECRET\n/);
-    expect(stdout).toMatch(/we_1\s+https:\/\/x\.test\s+enabled\s+-\s+whsec_new/);
+    expect(stdout).toMatch(/^ID\s+URL\s+STATUS\s+EVENT CODES\s+SECRET\n/);
+    expect(stdout).toMatch(
+      /we_1\s+https:\/\/x\.test\s+active\s+\["transfer\.completed"\]\s+whsec_new/
+    );
   });
 
-  it("renders refunds with the refund columns", async () => {
-    const refund = {
-      id: "re_1",
-      status: "pending",
-      amount: 500,
-      currency: "usd",
-      transfer_id: "tr_1",
-    };
-    nextResponse = { status: 200, body: JSON.stringify({ data: [refund] }) };
+  it.each([
+    [
+      ["webhooks", "delete", "we_1"],
+      { id: "we_1", object: "webhook_endpoint" },
+      "webhook_endpoint we_1",
+    ],
+    [["products", "delete", "prod_1"], { id: "prod_1", object: "product" }, "product prod_1"],
+    [
+      ["invoices", "delete-line-item", "inv_1", "li_1"],
+      { object: "invoice_line_item" },
+      "invoice_line_item li_1",
+    ],
+  ])("frame %j confirms the deletion instead of printing a table", async (args, body, expected) => {
+    nextResponse = { status: 200, body: JSON.stringify({ ...body, deleted: true }) };
 
-    await frame(["refunds", "list"]);
+    expect(await frame(args)).toBe(0);
 
-    const [header, row] = stdout.trimEnd().split("\n");
-    expect(header).toMatch(/^ID\s+STATUS\s+AMOUNT\s+CURRENCY\s+TRANSFER ID\s+REASON$/);
-    expect(row).toMatch(/^re_1\s+pending\s+500\s+usd\s+tr_1\s+-$/);
+    expect(stdout).toBe(`Deleted ${expected}\n`);
   });
 
   it("renders products with the product columns", async () => {
@@ -840,7 +884,7 @@ describe("refunds, webhooks, products and invoices", () => {
       default_price: 900,
       purchase_type: "one_time",
     };
-    nextResponse = { status: 200, body: JSON.stringify({ data: [product] }) };
+    nextResponse = { status: 200, body: JSON.stringify({ products: [product] }) };
 
     await frame(["products", "search", "--name", "mug"]);
 
@@ -853,30 +897,33 @@ describe("refunds, webhooks, products and invoices", () => {
   it("renders invoices with the invoice columns", async () => {
     const invoice = {
       id: "inv_1",
-      number: "INV-1",
+      invoice_number: "INV-1",
       status: "draft",
-      account_id: "acct_1",
+      account: { id: "acct_1", object: "account" },
       total: 900,
     };
     nextResponse = { status: 200, body: JSON.stringify(invoice) };
     await frame(["invoices", "retrieve", "inv_1"]);
-    expect(stdout).toMatch(/^ID\s+NUMBER\s+STATUS\s+ACCOUNT ID\s+TOTAL\s+CURRENCY\s+DUE DATE\n/);
+    expect(stdout).toMatch(
+      /^ID\s+INVOICE NUMBER\s+STATUS\s+ACCOUNT ID\s+TOTAL\s+CURRENCY\s+DUE DATE\n/
+    );
     expect(stdout).toMatch(/inv_1\s+INV-1\s+draft\s+acct_1\s+900/);
   });
 
   it("renders invoice line items with the line item columns", async () => {
     const lineItem = {
       id: "li_1",
-      product_id: "prod_1",
       description: "Mug",
       quantity: 2,
-      unit_amount: 900,
-      amount: 1800,
+      unit_amount_cents: 900,
+      unit_amount_currency: "USD",
     };
     nextResponse = { status: 200, body: JSON.stringify({ data: [lineItem] }) };
     await frame(["invoices", "list-line-items", "inv_1"]);
-    expect(stdout).toMatch(/^ID\s+PRODUCT ID\s+DESCRIPTION\s+QUANTITY\s+UNIT AMOUNT\s+AMOUNT\n/);
-    expect(stdout).toMatch(/li_1\s+prod_1\s+Mug\s+2\s+900\s+1800/);
+    expect(stdout).toMatch(
+      /^ID\s+DESCRIPTION\s+QUANTITY\s+UNIT AMOUNT CENTS\s+UNIT AMOUNT CURRENCY\n/
+    );
+    expect(stdout).toMatch(/li_1\s+Mug\s+2\s+900\s+USD/);
   });
 
   it("writes the raw body with --json", async () => {
@@ -906,7 +953,6 @@ describe("frame --help", () => {
       ["payment-methods", "PaymentMethods — cards and bank accounts"],
       ["accounts", "Accounts — the parties a merchant transacts with"],
       ["capabilities", "Capabilities — permissions an Account requests"],
-      ["refunds", "Refunds — reversals of completed inbound Core Transfers"],
       ["webhooks", "Webhooks — endpoints that receive your events"],
       ["products", "Products — goods and services you bill for"],
       ["invoices", "Invoices — bills sent to an Account, with their line items"],
@@ -914,6 +960,86 @@ describe("frame --help", () => {
       expect(stdout).toMatch(new RegExp(`^\\s+${command}\\s+.*${description}`, "m"));
     }
     expect(stdout).not.toMatch(/^\s+customers/m);
+    expect(stdout).not.toMatch(/^\s+refunds/m);
+  });
+});
+
+describe("API error bodies", () => {
+  it.each([
+    [
+      400,
+      { type: "validation_error", message: "Missing required fields: description", data: null },
+      {},
+      "Error: Missing required fields: description (HTTP 400)",
+    ],
+    [
+      404,
+      { status: 404, error: "Not Found", code: "not_found" },
+      {},
+      "Error: not_found: Not Found (HTTP 404)",
+    ],
+    [
+      422,
+      {
+        status: 422,
+        error: "Unprocessable Entity",
+        code: "validation_errors",
+        error_details: "amount.value must be an integer",
+      },
+      {},
+      "Error: validation_errors: amount.value must be an integer (HTTP 422)",
+    ],
+    [
+      400,
+      { error: "Payment Method already attached" },
+      {},
+      "Error: Payment Method already attached (HTTP 400)",
+    ],
+    [401, { status: 401, error: "Unauthorized" }, {}, "Error: Unauthorized (HTTP 401)"],
+    [
+      429,
+      { type: "api_error", message: "50 requests per minute exceeded." },
+      { "Retry-After": "60" },
+      "Error: 50 requests per minute exceeded. (HTTP 429)\nRetry after 60 seconds.",
+    ],
+  ])("renders a %d body %j as the API's message", async (status, body, headers, expected) => {
+    nextResponse = { status, body: JSON.stringify(body), headers };
+
+    const code = await frame(["transfers", "retrieve", "tr_1"]);
+
+    expect(code).toBe(1);
+    expect(stderr).toContain(expected);
+  });
+
+  it("lists field errors carried under error_details.data.errors", async () => {
+    nextResponse = {
+      status: 422,
+      body: JSON.stringify({
+        status: 422,
+        error: "Unprocessable Entity",
+        code: "validation_errors",
+        error_details: {
+          message: "Missing required fields: description",
+          data: { errors: { description: ["can't be blank"] } },
+        },
+      }),
+    };
+
+    await frame(["products", "create", "--name", "Mug"]);
+
+    expect(stderr).toContain("validation_errors: Missing required fields: description (HTTP 422)");
+    expect(stderr).toContain("description: can't be blank");
+  });
+
+  it("names an HTML error page without dumping it", async () => {
+    nextResponse = { status: 500, body: "<!DOCTYPE html><html><body>boom</body></html>" };
+
+    const code = await frame(["transfers", "retrieve", "tr_1"]);
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("HTTP 500 from");
+    expect(stderr).toContain("an HTML page");
+    expect(stderr).not.toContain("DOCTYPE");
   });
 });
 

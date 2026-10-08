@@ -7,7 +7,7 @@ export const webhooks: ResourceDefinition = {
     "id",
     "url",
     "status",
-    "events",
+    "event_codes",
     "secret"
   ],
   "operations": [
@@ -18,7 +18,7 @@ export const webhooks: ResourceDefinition = {
       "summary": "Create a Webhook endpoint",
       "pathParams": [],
       "bodyArgument": {
-        "name": "events",
+        "name": "event_codes",
         "description": "Event codes to deliver to the endpoint"
       },
       "flags": [
@@ -65,13 +65,13 @@ export const webhooks: ResourceDefinition = {
       "pathParams": [],
       "flags": [
         {
-          "flag": "limit",
+          "flag": "per_page",
           "location": "query",
           "path": [
-            "limit"
+            "per_page"
           ],
           "type": "integer",
-          "description": "Maximum number of endpoints to return (1-100)"
+          "description": "Number of endpoints per page (1-100, default 10)"
         },
         {
           "flag": "page",
@@ -114,19 +114,6 @@ export const webhooks: ResourceDefinition = {
           ],
           "type": "string",
           "description": "Free-text description of the endpoint"
-        },
-        {
-          "flag": "status",
-          "location": "body",
-          "path": [
-            "status"
-          ],
-          "type": "string",
-          "description": "Pause (disabled) or resume (enabled) deliveries",
-          "choices": [
-            "enabled",
-            "disabled"
-          ]
         }
       ],
       "acceptsBody": true
