@@ -1,0 +1,60 @@
+resources:
+  transfers:
+    tag: Transfers
+    columns: [id, status, payment_status, failure_code, amount.value]
+    wait:
+      terminal_statuses: [completed, failed]
+      operations: [create, confirm]
+    operations:
+      list: GET /v2/transfers
+      retrieve: GET /v2/transfers/{id}
+      create: POST /v2/transfers
+      confirm: POST /v2/transfers/{id}/confirm
+  payment-methods:
+    tag: PaymentMethods
+    columns: [id, type, status, ach.last_four]
+    operations:
+      create: POST /v1/payment_methods
+      block: POST /v1/payment_methods/{id}/block
+  accounts:
+    tag: Accounts
+    columns: [id, type, status]
+    operations:
+      create: POST /v1/accounts
+  capabilities:
+    tag: Capabilities
+    columns: [name, status]
+    operations:
+      request:
+        operation: POST /v1/accounts/{account_id}/capabilities
+        argument: capabilities
+  refunds:
+    tag: Refunds
+    columns: [id, status, amount, transfer_id]
+    operations:
+      create: POST /v1/refunds
+  webhooks:
+    tag: WebhookEndpoints
+    columns: [id, url, status, secret]
+    operations:
+      create:
+        operation: POST /v1/webhook_endpoints
+        argument: events
+      delete: DELETE /v1/webhook_endpoints/{id}
+  products:
+    tag: Products
+    columns: [id, name, default_price]
+    operations:
+      update: PATCH /v1/products/{id}
+      search: GET /v1/products/search
+  invoices:
+    tag: Invoices
+    columns: [id, number, status, total]
+    operations:
+      issue: POST /v1/invoices/{id}/issue
+      retrieve-line-item:
+        operation: GET /v1/invoices/{invoice_id}/line_items/{id}
+        columns: [id, description, quantity, amount]
+deprecated:
+  customers: accounts
+  payouts: transfers

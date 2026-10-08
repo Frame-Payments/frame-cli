@@ -17,7 +17,8 @@
     "sandcastle": "node --max-old-space-size=8192 --import tsx .sandcastle/main.mts",
     "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build",
     "sandcastle:test": "node --import tsx --test \".sandcastle/*.test.mts\"",
-    "sandcastle:typecheck": "tsc --noEmit -p .sandcastle"
+    "sandcastle:typecheck": "tsc --noEmit -p .sandcastle",
+    "codegen": "tsx scripts/codegen.ts"
   },
   "publishConfig": {
     "access": "public"

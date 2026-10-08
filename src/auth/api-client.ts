@@ -10,6 +10,8 @@
  * rather than commit to a value the server doesn't honour.
  */
 
+import { isObject } from "../json.js";
+
 /**
  * Hardcoded fallback when no env var or stored credential overrides it.
  *
@@ -47,6 +49,10 @@ export function resolveBaseUrl(cred: { baseUrl?: string } | null | undefined): s
   return HARDCODED_DEFAULT_BASE_URL;
 }
 
+export function apiRoot(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, "").replace(/\/v\d+$/, "");
+}
+
 // ---------------------------------------------------------------------------
 // Shared response types
 // ---------------------------------------------------------------------------
@@ -75,21 +81,33 @@ export interface MeResponse {
  */
 export type ApiErrorDetails = Record<string, unknown>;
 
+interface ApiErrorExtras {
+  errorType?: string;
+  code?: string;
+  details?: ApiErrorDetails;
+  retryAfterSeconds?: number;
+}
+
 export class ApiError extends Error {
   /** Server-side error category (e.g. "validation_error", "not_found"). */
   public readonly errorType: string | undefined;
+  public readonly code: string | undefined;
   /** Field-level validation breakdown when present (422s). */
   public readonly details: ApiErrorDetails | undefined;
+  /** Seconds to wait before retrying, from a 429's Retry-After header. */
+  public readonly retryAfterSeconds: number | undefined;
 
   constructor(
     public readonly status: number,
     message: string,
-    extras: { errorType?: string; details?: ApiErrorDetails } = {},
+    extras: ApiErrorExtras = {},
   ) {
     super(message);
     this.name = "ApiError";
     this.errorType = extras.errorType;
+    this.code = extras.code;
     this.details = extras.details;
+    this.retryAfterSeconds = extras.retryAfterSeconds;
   }
 }
 
@@ -97,7 +115,20 @@ export class ApiError extends Error {
 // Client shape
 // ---------------------------------------------------------------------------
 
+export interface ApiResponse {
+  text: string;
+  body: unknown;
+  headers: Headers;
+}
+
 export interface ApiClient {
+  send(
+    method: string,
+    path: string,
+    body?: unknown,
+    headers?: Record<string, string>,
+    signal?: AbortSignal
+  ): Promise<ApiResponse>;
   get<T = unknown>(path: string): Promise<T>;
   post<T = unknown>(path: string, body?: unknown): Promise<T>;
   patch<T = unknown>(path: string, body?: unknown): Promise<T>;
@@ -129,12 +160,57 @@ function truncateForError(text: string, max = 200): string {
 }
 
 /**
+ * Frame's error envelope: `{ status, error: "<message>", code, error_details }`,
+ * where `error_details` is a message string, a `{ message, data }` hash from a
+ * service failure, or absent. `data.errors` carries field-level details.
+ */
+function nonJsonMessage(status: number, url: string, rawText: string): string {
+  const html = /^\s*</.test(rawText);
+  const body = html ? "an HTML page" : `Body: ${truncateForError(rawText)}`;
+  return `HTTP ${status} from ${url}: response was not valid JSON. ${body}`;
+}
+
+function parseCodedError(body: unknown): ({ message: string } & ApiErrorExtras) | null {
+  if (!isObject(body) || typeof body.code !== "string") return null;
+  const details = body.error_details;
+  const message =
+    firstString(
+      typeof details === "string" ? details : undefined,
+      isObject(details) ? details.message : undefined,
+      body.error
+    ) ?? body.code;
+  const data = isObject(details) && isObject(details.data) ? details.data : undefined;
+  const out: { message: string } & ApiErrorExtras = { message, code: body.code };
+  if (data !== undefined && isObject(data.errors)) out.details = data.errors;
+  return out;
+}
+
+/**
+ * Bodies without a `code`: a service failure rendered directly as
+ * `{ type, message, data }`, or `{ status, error: "<message>" }`.
+ */
+function parseMessageOnlyError(body: unknown): ({ message: string } & ApiErrorExtras) | null {
+  if (!isObject(body)) return null;
+  const message = firstString(body.message, body.error);
+  if (message === undefined) return null;
+  const out: { message: string } & ApiErrorExtras = { message };
+  if (typeof body.type === "string") out.errorType = body.type;
+  if (isObject(body.data) && isObject(body.data.errors)) out.details = body.data.errors;
+  return out;
+}
+
+function firstString(...candidates: unknown[]): string | undefined {
+  const found = candidates.find((candidate) => typeof candidate === "string");
+  return typeof found === "string" ? found : undefined;
+}
+
+/**
  * Pull the canonical Frame API error envelope `{ error: { type, message, errors } }`
  * out of a parsed response body. Returns `null` if the body doesn't match.
  */
-function parseServerError(
-  body: unknown,
-): { message: string; errorType?: string; details?: ApiErrorDetails } | null {
+function parseServerError(body: unknown): ({ message: string } & ApiErrorExtras) | null {
+  const coded = parseCodedError(body);
+  if (coded !== null) return coded;
   if (
     body === null ||
     typeof body !== "object" ||
@@ -142,12 +218,12 @@ function parseServerError(
     body.error === null ||
     typeof body.error !== "object"
   ) {
-    return null;
+    return parseMessageOnlyError(body);
   }
   const err = body.error as Record<string, unknown>;
   if (typeof err.message !== "string") return null;
 
-  const out: { message: string; errorType?: string; details?: ApiErrorDetails } = {
+  const out: { message: string } & ApiErrorExtras = {
     message: err.message,
   };
   if (typeof err.type === "string") out.errorType = err.type;
@@ -164,15 +240,23 @@ function parseServerError(
 export function createApiClient(opts: ApiClientOptions): ApiClient {
   const base = opts.baseUrl ?? DEFAULT_BASE_URL;
 
-  async function request<T>(method: string, path: string, reqBody?: unknown): Promise<T> {
+  async function send(
+    method: string,
+    path: string,
+    reqBody?: unknown,
+    extraHeaders: Record<string, string> = {},
+    signal?: AbortSignal
+  ): Promise<ApiResponse> {
     const url = `${base}${path}`;
     const resp = await fetch(url, {
       method,
       headers: {
+        ...extraHeaders,
         Authorization: `Bearer ${opts.apiKey}`,
         "Content-Type": "application/json",
       },
       ...(reqBody !== undefined ? { body: JSON.stringify(reqBody) } : {}),
+      ...(signal !== undefined ? { signal } : {}),
     });
 
     const rawText = await resp.text();
@@ -180,27 +264,28 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     try {
       responseBody = rawText.length === 0 ? undefined : JSON.parse(rawText);
     } catch {
-      throw new ApiError(
-        resp.status,
-        `HTTP ${resp.status} from ${url}: response was not valid JSON. Body: ${truncateForError(rawText)}`,
-      );
+      throw new ApiError(resp.status, nonJsonMessage(resp.status, url, rawText));
     }
 
     if (!resp.ok) {
-      const parsed = parseServerError(responseBody);
-      if (parsed === null) {
-        throw new ApiError(resp.status, `HTTP ${resp.status}`);
-      }
-      const extras: { errorType?: string; details?: ApiErrorDetails } = {};
-      if (parsed.errorType !== undefined) extras.errorType = parsed.errorType;
-      if (parsed.details !== undefined) extras.details = parsed.details;
-      throw new ApiError(resp.status, parsed.message, extras);
+      const parsed = parseServerError(responseBody) ?? { message: `HTTP ${resp.status}` };
+      const { message, ...extras } = parsed;
+      const retryAfterSeconds = Number(resp.headers.get("Retry-After"));
+      if (resp.status === 429 && Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0)
+        extras.retryAfterSeconds = retryAfterSeconds;
+      throw new ApiError(resp.status, message, extras);
     }
 
-    return responseBody as T;
+    return { text: rawText, body: responseBody, headers: resp.headers };
+  }
+
+  async function request<T>(method: string, path: string, reqBody?: unknown): Promise<T> {
+    const response = await send(method, path, reqBody);
+    return response.body as T;
   }
 
   return {
+    send,
     get: <T>(path: string) => request<T>("GET", path),
     post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
     patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),

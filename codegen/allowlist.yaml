@@ -1,0 +1,135 @@
+resources:
+  transfers:
+    tag: Transfers
+    columns:
+      - id
+      - status
+      - payment.status
+      - payment.failure_code
+      - amount.value
+      - amount.currency
+      - payment.amount_refunded.value
+    wait:
+      terminal_statuses: [completed, failed, reversed, canceled]
+      operations: [create, confirm]
+    operations:
+      list: GET /v2/transfers
+      retrieve: GET /v2/transfers/{id}
+      create: POST /v2/transfers
+      confirm: POST /v2/transfers/{id}/confirm
+      refund: POST /v2/transfers/{id}/refund
+      capture: POST /v2/transfers/{id}/capture
+      void: POST /v2/transfers/{id}/void
+  payment-methods:
+    tag: PaymentMethods
+    columns:
+      - id
+      - type
+      - status
+      - account_id
+      - ach.account_type
+      - ach.last_four
+    operations:
+      create: POST /v1/payment_methods
+      retrieve: GET /v1/payment_methods/{id}
+      list: GET /v1/payment_methods
+      block: POST /v1/payment_methods/{id}/block
+      unblock: POST /v1/payment_methods/{id}/unblock
+      attach: POST /v1/payment_methods/{id}/attach
+      detach: POST /v1/payment_methods/{id}/detach
+  accounts:
+    tag: Accounts
+    columns:
+      - id
+      - type
+      - status
+      - external_id
+    operations:
+      create: POST /v1/accounts
+      retrieve: GET /v1/accounts/{id}
+      list: GET /v1/accounts
+  capabilities:
+    tag: Capabilities
+    columns:
+      - name
+      - status
+      - disabled_reason
+    operations:
+      request:
+        operation: POST /v1/accounts/{account_id}/capabilities
+        argument: capabilities
+  webhooks:
+    tag: WebhookEndpoints
+    columns:
+      - id
+      - url
+      - status
+      - event_codes
+      - secret
+    operations:
+      create:
+        operation: POST /v1/webhook_endpoints
+        argument: event_codes
+      retrieve: GET /v1/webhook_endpoints/{id}
+      list: GET /v1/webhook_endpoints
+      update: PATCH /v1/webhook_endpoints/{id}
+      delete: DELETE /v1/webhook_endpoints/{id}
+      rotate-secret: POST /v1/webhook_endpoints/{id}/rotate_secret
+  products:
+    tag: Products
+    columns:
+      - id
+      - name
+      - active
+      - default_price
+      - purchase_type
+      - recurring_interval
+    operations:
+      create: POST /v1/products
+      retrieve: GET /v1/products/{id}
+      list: GET /v1/products
+      update: PATCH /v1/products/{id}
+      delete: DELETE /v1/products/{id}
+      search:
+        operation: GET /v1/products/search
+        rows: products
+  invoices:
+    tag: Invoices
+    columns:
+      - id
+      - invoice_number
+      - status
+      - account.id
+      - total
+      - currency
+      - due_date
+    operations:
+      create: POST /v1/invoices
+      retrieve: GET /v1/invoices/{id}
+      list: GET /v1/invoices
+      update: PATCH /v1/invoices/{id}
+      issue: POST /v1/invoices/{id}/issue
+      list-line-items:
+        operation: GET /v1/invoices/{invoice_id}/line_items
+        columns: &line-item-columns
+          - id
+          - description
+          - quantity
+          - unit_amount_cents
+          - unit_amount_currency
+      create-line-item:
+        operation: POST /v1/invoices/{invoice_id}/line_items
+        columns: *line-item-columns
+      retrieve-line-item:
+        operation: GET /v1/invoices/{invoice_id}/line_items/{id}
+        columns: *line-item-columns
+      update-line-item:
+        operation: PATCH /v1/invoices/{invoice_id}/line_items/{id}
+        columns: *line-item-columns
+      delete-line-item:
+        operation: DELETE /v1/invoices/{invoice_id}/line_items/{id}
+        columns: *line-item-columns
+deprecated:
+  customers: accounts
+  charge-intents: transfers
+  payouts: transfers

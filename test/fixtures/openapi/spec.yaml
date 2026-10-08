@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Frame API fixture
+  version: "2024-01-01"
+tags:
+  - name: Transfers
+    description: Core Transfers — money movement in either direction
+  - name: PaymentMethods
+    description: PaymentMethods — cards and bank accounts
+  - name: Accounts
+    description: Accounts — the parties a merchant transacts with
+  - name: Capabilities
+    description: Capabilities — permissions an Account requests
+  - name: Refunds
+    description: Refunds — reversals of completed inbound Core Transfers
+  - name: WebhookEndpoints
+    description: Webhooks — endpoints that receive your events
+  - name: Products
+    description: Products — goods and services you bill for
+  - name: Invoices
+    description: Invoices — bills sent to an Account, with their line items
+paths:
+  /v2/transfers:
+    get:
+      operationId: listTransfers
+      summary: List Core Transfers
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - name: type
+          in: query
+          description: Only return transfers of this type
+          schema:
+            type: string
+            enum: [payment, payout]
+      responses:
+        "200":
+          description: A page of transfers
+    post:
+      operationId: createTransfer
+      summary: Create a Core Transfer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferCreate"
+      responses:
+        "201":
+          description: The created transfer
+  /v2/transfers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Transfer id
+        schema:
+          type: string
+    get:
+      operationId: retrieveTransfer
+      summary: Retrieve a Core Transfer
+      responses:
+        "200":
+          description: The transfer
+  /v2/transfers/{id}/confirm:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Transfer id
+        schema:
+          type: string
+    post:
+      operationId: confirmTransfer
+      summary: Confirm a Core Transfer
+      responses:
+        "200":
+          description: The transfer
+  /v1/payment_methods:
+    post:
+      operationId: createPaymentMethod
+      summary: Create a PaymentMethod
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: Kind of payment method
+                  enum: [card, ach]
+                account:
+                  type: string
+                  description: Account id to attach the payment method to
+                account_number:
+                  type: string
+                  description: Bank account number (ach)
+                routing_number:
+                  type: string
+                  description: Nine-digit ABA routing number (ach)
+      responses:
+        "201":
+          description: The created PaymentMethod
+  /v1/payment_methods/{id}/block:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: PaymentMethod id
+        schema:
+          type: string
+    post:
+      operationId: blockPaymentMethod
+      summary: Block a PaymentMethod
+      responses:
+        "200":
+          description: The PaymentMethod
+  /v1/accounts:
+    post:
+      operationId: createAccount
+      summary: Create an Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: Kind of party the Account represents
+                  enum: [individual, business]
+                profile:
+                  type: object
+                  properties:
+                    individual:
+                      type: object
+                      properties:
+                        name:
+                          type: object
+                          properties:
+                            first_name:
+                              type: string
+                              description: Legal first name
+      responses:
+        "201":
+          description: The created Account
+  /v1/transfers:
+    get:
+      operationId: listLegacyTransfers
+      summary: List V1 transfers
+      responses:
+        "200":
+          description: A page of V1 transfers
+  /v1/customers:
+    get:
+      operationId: listCustomers
+      summary: List customers
+      responses:
+        "200":
+          description: A page of customers
+  /v1/accounts/{account_id}/capabilities:
+    post:
+      operationId: requestCapabilities
+      summary: Request capabilities for an Account
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          description: Account id
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                capabilities:
+                  type: array
+                  description: Capabilities to request
+                  items:
+                    type: string
+                    enum: [card_receive, bank_account_receive]
+      responses:
+        "200":
+          description: The Account's capabilities
+  /v1/refunds:
+    post:
+      operationId: createRefund
+      summary: Refund a completed inbound Core Transfer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transfer:
+                  type: string
+                  description: Id of the Core Transfer to refund
+                amount:
+                  type: integer
+                  description: Amount to refund
+      responses:
+        "201":
+          description: The created Refund
+  /v1/webhook_endpoints:
+    post:
+      operationId: createWebhookEndpoint
+      summary: Create a Webhook endpoint
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: HTTPS URL the events are delivered to
+                events:
+                  type: array
+                  description: Event codes to deliver to the endpoint
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: The created Webhook endpoint
+  /v1/webhook_endpoints/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Webhook endpoint id
+        schema:
+          type: string
+    delete:
+      operationId: deleteWebhookEndpoint
+      summary: Delete a Webhook endpoint
+      responses:
+        "200":
+          description: The deleted Webhook endpoint
+  /v1/products/search:
+    get:
+      operationId: searchProducts
+      summary: Search Products by name
+      parameters:
+        - name: name
+          in: query
+          description: Text to match against product names
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching Products
+  /v1/products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Product id
+        schema:
+          type: string
+    patch:
+      operationId: updateProduct
+      summary: Update a Product
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default_price:
+                  type: integer
+                  description: Price in the smallest currency unit
+      responses:
+        "200":
+          description: The updated Product
+  /v1/invoices/{id}/issue:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Invoice id
+        schema:
+          type: string
+    post:
+      operationId: issueInvoice
+      summary: Issue a draft Invoice to its Account
+      responses:
+        "200":
+          description: The issued Invoice
+  /v1/invoices/{invoice_id}/line_items/{id}:
+    parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        description: Invoice id
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Line item id
+        schema:
+          type: string
+    get:
+      operationId: retrieveInvoiceLineItem
+      summary: Retrieve an Invoice line item
+      responses:
+        "200":
+          description: The line item
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of transfers to return
+      schema:
+        type: integer
+  schemas:
+    TransferCreate:
+      type: object
+      properties:
+        amount:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Amount in the smallest currency unit
+            currency:
+              type: string
+              description: Three-letter ISO currency code
+        source:
+          type: object
+          properties:
+            payment_method_id:
+              type: string
+              description: Payment method the funds are pulled from
+        confirm:
+          type: boolean
+          description: Confirm the transfer immediately
+        metadata:
+          type: object
+          description: Free-form key-value pairs
+        line_items:
+          type: array
+          items:
+            type: string

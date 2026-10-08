@@ -14,20 +14,19 @@ describe("README.md", () => {
   it("mentions the package name and sandbox-only status in the header", () => {
     expect(readme).toMatch(/Frame CLI/);
     expect(readme).toMatch(/sandbox/i);
-    expect(readme).toMatch(/0\.0\.0/);
   });
 
   describe("Install section", () => {
-    it("includes npm global install command", () => {
-      expect(readme).toContain("npm i -g @frame-payments/cli");
+    it("includes Homebrew install command", () => {
+      expect(readme).toContain("brew install Frame-Payments/tap/frame");
     });
 
-    it("includes npx escape hatch", () => {
-      expect(readme).toContain("npx @frame-payments/cli");
+    it("includes the tap-first alternative", () => {
+      expect(readme).toContain("brew tap Frame-Payments/tap");
     });
 
-    it("mentions Node.js >= 20 requirement", () => {
-      expect(readme).toMatch(/[Nn]ode\.?[Jj]s?\s*[≥>=]+\s*20/);
+    it("states the Homebrew requirement", () => {
+      expect(readme).toMatch(/\*\*Requirements:\*\*\s*Homebrew/);
     });
   });
 
@@ -51,11 +50,21 @@ describe("README.md", () => {
       "frame listen",
       "frame events resend",
       "frame open",
+      "frame transfers",
+      "frame payment-methods",
+      "frame accounts",
+      "frame capabilities",
+      "frame webhooks create <event_codes...>",
+      "frame webhooks list|retrieve|update|delete|rotate-secret",
+      "frame products create|list|retrieve|update|delete|search",
+      "frame invoices create|list|retrieve|update|issue",
+      "frame invoices list-line-items <invoice_id>",
+      "frame invoices create-line-item|retrieve-line-item|update-line-item|delete-line-item",
     ];
 
     for (const cmd of commands) {
       it(`includes '${cmd}' in the command table`, () => {
-        expect(readme).toContain(cmd);
+        expect(readme.replaceAll("\\|", "|")).toContain(cmd);
       });
     }
 

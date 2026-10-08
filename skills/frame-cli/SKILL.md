@@ -6,9 +6,11 @@ description: >
   wants to listen for webhooks, resend past sandbox events, authenticate the
   CLI, or open the Frame dashboard. Also activates for legacy Frame vocabulary:
   customer, charge_intent, payout, charge — all map to canonical surfaces
-  (accounts, transfers, refunds). Sandbox-only: live credentials are rejected at
+  (accounts, transfers, webhooks). Sandbox-only: live credentials are rejected at
   runtime. Core commands: frame login, frame logout, frame whoami, frame listen,
-  frame events resend <evt_id>, frame open [page].
+  frame events resend <evt_id>, frame open [page], and resource commands for
+  transfers, payment-methods, accounts, capabilities, webhooks,
+  products and invoices.
 compatibility: >
   Requires `frame` on PATH (npm install -g @frame-payments/cli). Reads/writes OS
   keychain (keytar) for credential storage — may fail in headless containers
@@ -63,6 +65,20 @@ or `dbus-launch`).
 | `frame whoami` | Print the authenticated identity |
 | `frame listen` | Forward sandbox webhooks to a local server |
 | `frame events resend <evt_id>` | Resend a past sandbox event by ID |
+| `frame transfers list` | List Core Transfers |
+| `frame transfers retrieve <id>` | Retrieve one Core Transfer |
+| `frame transfers create` | Create a Core Transfer |
+| `frame transfers confirm\|refund\|capture\|void <id>` | Member actions on a Core Transfer; `refund --amount.value` for a partial refund |
+| `frame payment-methods create\|list\|retrieve` | Manage PaymentMethods |
+| `frame payment-methods block\|unblock\|attach\|detach <id>` | Member actions on a PaymentMethod |
+| `frame accounts create\|list\|retrieve` | Manage Accounts |
+| `frame capabilities request <account_id> <capabilities...>` | Request Capabilities for an Account |
+| `frame webhooks create <event_codes...>` | Register a Webhook endpoint for the given event codes (`--url`) |
+| `frame webhooks list\|retrieve\|update\|delete\|rotate-secret` | Manage Webhook endpoints; `rotate-secret` returns a new signing secret |
+| `frame products create\|list\|retrieve\|update\|delete\|search` | Manage Products |
+| `frame invoices create\|list\|retrieve\|update\|issue` | Manage Invoices |
+| `frame invoices list-line-items <invoice_id>` | List an Invoice's line items |
+| `frame invoices create-line-item\|retrieve-line-item\|update-line-item\|delete-line-item` | Manage the line items of a draft Invoice |
 | `frame open [page]` | Open a Frame dashboard page in the browser |
 
 ---
@@ -99,6 +115,74 @@ reproduce a flaky delivery without re-triggering the full fixture sequence.
 ```bash
 frame events resend evt_abc123
 ```
+
+### `frame transfers list` / `frame transfers retrieve <id>`
+Read Core Transfers. Output is a table (id, status, payment status, failure
+code, amounts) by default; lists page with `--per_page` (default 10) and `--page`; `--json` prints the raw API body to stdout and
+nothing else, so it pipes cleanly into `jq`. API errors print the API's `code`
+and message and exit 1; usage errors exit 2. `--base-url` points at another
+host (e.g. a local `api.framepayments.test`).
+
+```bash
+frame transfers list --per_page 10 --page 2
+frame transfers retrieve tr_abc123 --json | jq .status
+```
+
+### Mutating commands (`create`, member actions, `capabilities request`)
+Request-body fields are flags named after the API field, nested fields dotted
+(`--profile.individual.name.first_name`); `--body <json-or-@file>` supplies a
+raw body that flags override. A card Transfer needs `--authorization_mode
+automatic|manual`; `--confirm` is sent as `false` when absent, and a card
+PaymentMethod needs its full `--billing.*` address before the Transfer confirms. Every one sends an `Idempotency-Key` header: a
+fresh UUID v4, printed on stderr with the banner, or `--idempotency-key <key>`
+verbatim. Reuse a key with the same body to replay; the replay prints
+`Idempotent-Replay: true` on stderr.
+
+```bash
+ACCT=$(frame accounts create --type individual \
+  --profile.individual.name.first_name Ada --json | jq -r .id)
+frame capabilities request "$ACCT" bank_account_receive
+PM=$(frame payment-methods create --type ach --account "$ACCT" \
+  --account_number 1234567890 --routing_number 011000015 --account_type checking \
+  --json | jq -r .id)
+frame transfers create --amount.value 2500 --amount.currency usd \
+  --source.payment_method_id "$PM" --confirm --idempotency-key order-42
+frame transfers refund tr_abc123 --amount.value 500
+```
+
+`--wait` on `transfers create` and `transfers confirm` polls the transfer every
+`--interval` (default `1s`) until it is `completed`, `failed`, `reversed` or
+`canceled`, then prints that final body; progress goes to stderr. Durations
+read `500ms`, `5s` or `2m`. After `--timeout` (default `60s`) it exits 3 naming
+the last observed status.
+
+```bash
+frame transfers create --amount.value 2500 --amount.currency usd \
+  --source.payment_method_id "$PM" --confirm --wait --json | jq -r .status
+```
+
+### Webhooks, products and invoices
+Same flags, `--json`, errors and `Idempotency-Key` behaviour as above; `update`
+and `delete` send `PATCH`/`DELETE` without a key, and a delete prints
+`Deleted <object> <id>`. `frame webhooks create` takes the event codes as
+arguments. Invoice line items are verbs on `frame invoices` taking the invoice
+id first, and print line item columns. Refunds of a Core Transfer are made and
+read through `frame transfers refund` and `frame transfers retrieve`; there is
+no `frame refunds` resource.
+
+```bash
+frame webhooks create transfer.completed refund.created --url https://example.com/hooks
+frame webhooks rotate-secret we_abc123 --json | jq -r .secret
+PROD=$(frame products create --name Mug --description "A mug" --default_price 900 \
+  --purchase_type one_time --json | jq -r .id)
+INV=$(frame invoices create --account "$ACCT" --collection_method request_payment \
+  --json | jq -r .id)
+frame invoices create-line-item "$INV" --product "$PROD" --quantity 2
+frame invoices issue "$INV"
+```
+
+`frame customers`, `frame charge-intents` and `frame payouts` are deprecated
+resources: they print the canonical command to use and exit non-zero.
 
 ### `frame open [page]`
 Opens a Frame dashboard page in the default browser. Run without `[page]` to

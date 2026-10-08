@@ -1,0 +1,539 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generateResourceCommands > emits the command tree for the allow-listed operations 1`] = `
+"// transfers.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const transfers: ResourceDefinition = {
+  "command": "transfers",
+  "description": "Core Transfers — money movement in either direction",
+  "columns": [
+    "id",
+    "status",
+    "payment_status",
+    "failure_code",
+    "amount.value"
+  ],
+  "operations": [
+    {
+      "verb": "list",
+      "method": "GET",
+      "path": "/v2/transfers",
+      "summary": "List Core Transfers",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "limit",
+          "location": "query",
+          "path": [
+            "limit"
+          ],
+          "type": "integer",
+          "description": "Maximum number of transfers to return"
+        },
+        {
+          "flag": "type",
+          "location": "query",
+          "path": [
+            "type"
+          ],
+          "type": "string",
+          "description": "Only return transfers of this type",
+          "choices": [
+            "payment",
+            "payout"
+          ]
+        }
+      ],
+      "acceptsBody": false
+    },
+    {
+      "verb": "retrieve",
+      "method": "GET",
+      "path": "/v2/transfers/{id}",
+      "summary": "Retrieve a Core Transfer",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Transfer id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    },
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v2/transfers",
+      "summary": "Create a Core Transfer",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "amount.value",
+          "location": "body",
+          "path": [
+            "amount",
+            "value"
+          ],
+          "type": "integer",
+          "description": "Amount in the smallest currency unit"
+        },
+        {
+          "flag": "amount.currency",
+          "location": "body",
+          "path": [
+            "amount",
+            "currency"
+          ],
+          "type": "string",
+          "description": "Three-letter ISO currency code"
+        },
+        {
+          "flag": "source.payment_method_id",
+          "location": "body",
+          "path": [
+            "source",
+            "payment_method_id"
+          ],
+          "type": "string",
+          "description": "Payment method the funds are pulled from"
+        },
+        {
+          "flag": "confirm",
+          "location": "body",
+          "path": [
+            "confirm"
+          ],
+          "type": "boolean",
+          "description": "Confirm the transfer immediately"
+        }
+      ],
+      "acceptsBody": true
+    },
+    {
+      "verb": "confirm",
+      "method": "POST",
+      "path": "/v2/transfers/{id}/confirm",
+      "summary": "Confirm a Core Transfer",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Transfer id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    }
+  ],
+  "wait": {
+    "terminalStatuses": [
+      "completed",
+      "failed"
+    ],
+    "verbs": [
+      "create",
+      "confirm"
+    ]
+  }
+};
+
+// payment-methods.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const paymentMethods: ResourceDefinition = {
+  "command": "payment-methods",
+  "description": "PaymentMethods — cards and bank accounts",
+  "columns": [
+    "id",
+    "type",
+    "status",
+    "ach.last_four"
+  ],
+  "operations": [
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v1/payment_methods",
+      "summary": "Create a PaymentMethod",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "type",
+          "location": "body",
+          "path": [
+            "type"
+          ],
+          "type": "string",
+          "description": "Kind of payment method",
+          "choices": [
+            "card",
+            "ach"
+          ]
+        },
+        {
+          "flag": "account",
+          "location": "body",
+          "path": [
+            "account"
+          ],
+          "type": "string",
+          "description": "Account id to attach the payment method to"
+        },
+        {
+          "flag": "account_number",
+          "location": "body",
+          "path": [
+            "account_number"
+          ],
+          "type": "string",
+          "description": "Bank account number (ach)"
+        },
+        {
+          "flag": "routing_number",
+          "location": "body",
+          "path": [
+            "routing_number"
+          ],
+          "type": "string",
+          "description": "Nine-digit ABA routing number (ach)"
+        }
+      ],
+      "acceptsBody": true
+    },
+    {
+      "verb": "block",
+      "method": "POST",
+      "path": "/v1/payment_methods/{id}/block",
+      "summary": "Block a PaymentMethod",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "PaymentMethod id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    }
+  ]
+};
+
+// accounts.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const accounts: ResourceDefinition = {
+  "command": "accounts",
+  "description": "Accounts — the parties a merchant transacts with",
+  "columns": [
+    "id",
+    "type",
+    "status"
+  ],
+  "operations": [
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v1/accounts",
+      "summary": "Create an Account",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "type",
+          "location": "body",
+          "path": [
+            "type"
+          ],
+          "type": "string",
+          "description": "Kind of party the Account represents",
+          "choices": [
+            "individual",
+            "business"
+          ]
+        },
+        {
+          "flag": "profile.individual.name.first_name",
+          "location": "body",
+          "path": [
+            "profile",
+            "individual",
+            "name",
+            "first_name"
+          ],
+          "type": "string",
+          "description": "Legal first name"
+        }
+      ],
+      "acceptsBody": true
+    }
+  ]
+};
+
+// capabilities.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const capabilities: ResourceDefinition = {
+  "command": "capabilities",
+  "description": "Capabilities — permissions an Account requests",
+  "columns": [
+    "name",
+    "status"
+  ],
+  "operations": [
+    {
+      "verb": "request",
+      "method": "POST",
+      "path": "/v1/accounts/{account_id}/capabilities",
+      "summary": "Request capabilities for an Account",
+      "pathParams": [
+        {
+          "name": "account_id",
+          "description": "Account id"
+        }
+      ],
+      "bodyArgument": {
+        "name": "capabilities",
+        "description": "Capabilities to request",
+        "choices": [
+          "card_receive",
+          "bank_account_receive"
+        ]
+      },
+      "flags": [],
+      "acceptsBody": true
+    }
+  ]
+};
+
+// refunds.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const refunds: ResourceDefinition = {
+  "command": "refunds",
+  "description": "Refunds — reversals of completed inbound Core Transfers",
+  "columns": [
+    "id",
+    "status",
+    "amount",
+    "transfer_id"
+  ],
+  "operations": [
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v1/refunds",
+      "summary": "Refund a completed inbound Core Transfer",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "transfer",
+          "location": "body",
+          "path": [
+            "transfer"
+          ],
+          "type": "string",
+          "description": "Id of the Core Transfer to refund"
+        },
+        {
+          "flag": "amount",
+          "location": "body",
+          "path": [
+            "amount"
+          ],
+          "type": "integer",
+          "description": "Amount to refund"
+        }
+      ],
+      "acceptsBody": true
+    }
+  ]
+};
+
+// webhooks.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const webhooks: ResourceDefinition = {
+  "command": "webhooks",
+  "description": "Webhooks — endpoints that receive your events",
+  "columns": [
+    "id",
+    "url",
+    "status",
+    "secret"
+  ],
+  "operations": [
+    {
+      "verb": "create",
+      "method": "POST",
+      "path": "/v1/webhook_endpoints",
+      "summary": "Create a Webhook endpoint",
+      "pathParams": [],
+      "bodyArgument": {
+        "name": "events",
+        "description": "Event codes to deliver to the endpoint"
+      },
+      "flags": [
+        {
+          "flag": "url",
+          "location": "body",
+          "path": [
+            "url"
+          ],
+          "type": "string",
+          "description": "HTTPS URL the events are delivered to"
+        }
+      ],
+      "acceptsBody": true
+    },
+    {
+      "verb": "delete",
+      "method": "DELETE",
+      "path": "/v1/webhook_endpoints/{id}",
+      "summary": "Delete a Webhook endpoint",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Webhook endpoint id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    }
+  ]
+};
+
+// products.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const products: ResourceDefinition = {
+  "command": "products",
+  "description": "Products — goods and services you bill for",
+  "columns": [
+    "id",
+    "name",
+    "default_price"
+  ],
+  "operations": [
+    {
+      "verb": "update",
+      "method": "PATCH",
+      "path": "/v1/products/{id}",
+      "summary": "Update a Product",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Product id"
+        }
+      ],
+      "flags": [
+        {
+          "flag": "default_price",
+          "location": "body",
+          "path": [
+            "default_price"
+          ],
+          "type": "integer",
+          "description": "Price in the smallest currency unit"
+        }
+      ],
+      "acceptsBody": true
+    },
+    {
+      "verb": "search",
+      "method": "GET",
+      "path": "/v1/products/search",
+      "summary": "Search Products by name",
+      "pathParams": [],
+      "flags": [
+        {
+          "flag": "name",
+          "location": "query",
+          "path": [
+            "name"
+          ],
+          "type": "string",
+          "description": "Text to match against product names"
+        }
+      ],
+      "acceptsBody": false
+    }
+  ]
+};
+
+// invoices.ts
+import type { ResourceDefinition } from "../../resources/definition.js";
+
+export const invoices: ResourceDefinition = {
+  "command": "invoices",
+  "description": "Invoices — bills sent to an Account, with their line items",
+  "columns": [
+    "id",
+    "number",
+    "status",
+    "total"
+  ],
+  "operations": [
+    {
+      "verb": "issue",
+      "method": "POST",
+      "path": "/v1/invoices/{id}/issue",
+      "summary": "Issue a draft Invoice to its Account",
+      "pathParams": [
+        {
+          "name": "id",
+          "description": "Invoice id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false
+    },
+    {
+      "verb": "retrieve-line-item",
+      "method": "GET",
+      "path": "/v1/invoices/{invoice_id}/line_items/{id}",
+      "summary": "Retrieve an Invoice line item",
+      "pathParams": [
+        {
+          "name": "invoice_id",
+          "description": "Invoice id"
+        },
+        {
+          "name": "id",
+          "description": "Line item id"
+        }
+      ],
+      "flags": [],
+      "acceptsBody": false,
+      "columns": [
+        "id",
+        "description",
+        "quantity",
+        "amount"
+      ]
+    }
+  ]
+};
+
+// index.ts
+import type { DeprecatedResource, ResourceDefinition } from "../../resources/definition.js";
+import { transfers } from "./transfers.js";
+import { paymentMethods } from "./payment-methods.js";
+import { accounts } from "./accounts.js";
+import { capabilities } from "./capabilities.js";
+import { refunds } from "./refunds.js";
+import { webhooks } from "./webhooks.js";
+import { products } from "./products.js";
+import { invoices } from "./invoices.js";
+
+export const resources: ResourceDefinition[] = [transfers, paymentMethods, accounts, capabilities, refunds, webhooks, products, invoices];
+
+export const deprecatedResources: DeprecatedResource[] = [
+  {
+    "command": "customers",
+    "canonical": "accounts"
+  },
+  {
+    "command": "payouts",
+    "canonical": "transfers"
+  }
+];
+"
+`;

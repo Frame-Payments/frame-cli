@@ -45,7 +45,7 @@ describe("skills/frame-cli/SKILL.md", () => {
     expect(fm["allowed-tools"]).toBeDefined();
   });
 
-  it("body contains all 7 documented commands (omits placeholder)", () => {
+  it("body documents every command (omits placeholder)", () => {
     const commands = [
       "frame login",
       "frame logout",
@@ -53,9 +53,19 @@ describe("skills/frame-cli/SKILL.md", () => {
       "frame listen",
       "frame events resend",
       "frame open",
+      "frame transfers",
+      "frame payment-methods",
+      "frame accounts",
+      "frame capabilities",
+      "frame webhooks create <event_codes...>",
+      "frame webhooks list|retrieve|update|delete|rotate-secret",
+      "frame products create|list|retrieve|update|delete|search",
+      "frame invoices create|list|retrieve|update|issue",
+      "frame invoices list-line-items <invoice_id>",
+      "frame invoices create-line-item|retrieve-line-item|update-line-item|delete-line-item",
     ];
     for (const cmd of commands) {
-      expect(body, `body should mention "${cmd}"`).toContain(cmd);
+      expect(body.replaceAll("\\|", "|"), `body should mention "${cmd}"`).toContain(cmd);
     }
     expect(body, "body should NOT mention 'placeholder'").not.toContain(
       "placeholder"

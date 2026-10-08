@@ -10,13 +10,15 @@ The authoritative domain glossary lives in `frame/CONTEXT.md` (the Rails repo). 
 
 **Capability**: a discrete permission an Account requests (`card_receive`, `card_send`, `kyc`, `bank_account_receive`, etc.). `frame capabilities request | list | retrieve | disable`.
 
-**Transfer**: the canonical public handle for any money movement, in either direction. `frame transfers create | list | retrieve | update | cancel`.
+**Transfer**: the canonical public handle for any money movement, in either direction. `frame transfers create | list | retrieve | confirm | refund | capture | void`.
 
-**Refund**: the reversal of a completed inbound Transfer. `frame refunds create | list | retrieve`.
+**PaymentMethod**: a card or bank account (ACH) that a Transfer pulls funds from or pays them out to, usually attached to an Account. Joins the ADR-0006 list because a Transfer cannot be created without one. `frame payment-methods create | list | retrieve | block | unblock | attach | detach`.
 
-**Webhook**: a merchant-registered endpoint that receives events. `frame webhooks create | list | retrieve | update | delete`.
+**Refund**: the reversal of a completed inbound Transfer, made with `frame transfers refund <id>` and read back on the Transfer's `payment.amount_refunded`. The API's `/v1/refunds` endpoints belong to the legacy charge-intent surface and are not exposed by the CLI.
 
-**Product**, **Invoice**: standard billing primitives. `frame products *`, `frame invoices *`.
+**Webhook**: a merchant-registered endpoint that receives events. Webhook endpoints on the API (`/v1/webhook_endpoints`); `frame webhooks create | list | retrieve | update | delete | rotate-secret`.
+
+**Product**, **Invoice**: standard billing primitives. `frame products create | list | retrieve | update | delete | search`, `frame invoices create | list | retrieve | update | issue`. An Invoice's line items are verbs on `frame invoices` (`list-line-items | create-line-item | retrieve-line-item | update-line-item | delete-line-item <invoice_id>`), not a resource of their own.
 
 ## Deprecated surface (no CLI commands)
 
@@ -31,6 +33,8 @@ A merchant who runs `frame customers create` should hit a clear error pointing t
 **live mode**: production traffic with `sk_live_*` keys. Out of scope for the CLI in v1. `frame login` rejects live keys with a clear error.
 
 **CLI session**: a running `frame listen` (or future `frame logs tail`) connection, modeled server-side as a transient `Webhook::Endpoint` with `status: :cli_session`. Auto-deleted by the server when the WebSocket disconnects or the session goes idle for ~5 minutes. CLI contributors should think of a session as ephemeral state — never write code that assumes the session outlives the WebSocket.
+
+**Idempotency-Key**: the header every mutating (`POST`) command sends so a retried command never double-charges. A fresh UUID v4 by default, printed on stderr with the banner; `--idempotency-key <key>` sends a chosen key verbatim, and the API marks a replayed response with `Idempotent-Replay`.
 
 **session secret** / **`whsec_cli_*`**: a per-session HMAC secret printed on `frame listen` startup, used to sign forwarded webhooks so the merchant's local server can verify them with normal signature-verification code. Distinct from the merchant's real endpoint secrets.
 
